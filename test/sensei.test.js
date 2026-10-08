@@ -6,7 +6,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const D = require('../load.js')({ quiet: true });
 const O = require('../sensei/oracle.js');
-const SJ = require('../sensei/sojobo.js');
+const SJ = require('../sensei/sojo.js');
 const St = require('../sensei/stage.js');
 const { wrap, width, summary } = require('../sensei.js');
 
@@ -45,11 +45,11 @@ test('a vague answer still gets an egg and a lesson', () => {
   for (const text of ['', 'idk', 'I am new to all of this']) {
     const r = read(text);
     assert.ok(r.creature && r.creature.id, text);
-    assert.ok(r.lesson && r.way && r.proverb.kanji, text);
+    assert.ok(r.lesson && r.way && typeof r.proverb === 'string' && r.proverb, text);
   }
 });
 
-test('losing your own skills brings Kuro, the sensei\'s own student', () => {
+test('losing your own skills brings Kuro, Sojo\'s own student', () => {
   assert.equal(read('I feel like I am losing my own skills and just rely on it').creature.id, 'kuro');
 });
 
@@ -60,7 +60,7 @@ test('every creature in the roster can be reached or is a deliberate fallback', 
   assert.ok(seen.size >= 20, `only ${seen.size} distinct Patchlings across the sample ailments`);
 });
 
-test('Sōjōbō sprite frames are complete and on-palette', () => {
+test('Sojo sprite frames are complete and on-palette', () => {
   for (const [name, rows] of Object.entries(SJ.FRAMES)) {
     assert.equal(rows.length, SJ.H, name);
     for (const row of rows) {
@@ -107,4 +107,34 @@ test('without a terminal or an answer, it explains how to proceed', () => {
   const run = spawnSync(process.execPath, [SENSEI], { env: { ...process.env, HATCHWORK_HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'hw-')) }, encoding: 'utf8', input: '' });
   assert.equal(run.status, 2);
   assert.match(run.stderr, /--launch|--ailment/);
+});
+
+test('the script is plain English: no kanji, no romaji', () => {
+  for (const [h, P] of Object.entries(O.PATHS)) {
+    for (const v of Object.values(P)) assert.ok(!/[\u3040-\u30ff\u4e00-\u9fff]/.test(v), `${h}: ${v}`);
+    assert.ok(P.way && P.proverb && P.hear && P.charge && P.lesson, h);
+  }
+  assert.ok(!/[\u3040-\u30ff\u4e00-\u9fff]/.test(fs.readFileSync(SENSEI, 'utf8')));
+});
+
+test('the bell glow follows the staff when it is raised', () => {
+  const S = { sx: 28, sy: 1, pose: 'idle' };
+  const down = St.bellAt(S), up = St.bellAt({ ...S, pose: 'raise' });
+  assert.equal(SJ.FRAMES.idle[Math.floor(down.y) - S.sy][Math.floor(down.x) - S.sx], 'Y', 'bell under the idle glow');
+  assert.equal(SJ.FRAMES.raise[Math.floor(up.y) - S.sy][Math.floor(up.x) - S.sx], 'Y', 'bell under the raised glow');
+});
+
+test('the whole ceremony plays through headless, taps and all', async () => {
+  const { PassThrough } = require('stream');
+  const { ceremony } = require('../sensei.js');
+  const stdout = new PassThrough(); Object.assign(stdout, { columns: 110, rows: 36 });
+  let bytes = 0; stdout.on('data', b => { bytes += b.length; });
+  const stdin = new PassThrough();
+  const key = setInterval(() => stdin.write(' '), 40);
+  try {
+    const r = await ceremony({ ailment: 'it says done but never runs the tests', dryRun: true, speed: 60, D, stdin, stdout });
+    assert.equal(r.path, 'verification');
+    assert.equal(r.saved, false);
+    assert.ok(bytes > 100000, 'drew frames');
+  } finally { clearInterval(key); }
 });

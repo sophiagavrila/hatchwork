@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Meet Sōjōbō. The first-run ceremony: the tengu king of Mount Kurama appears in smoke at the
-// night gate, asks what ails your work with agents, reads it, and hands you the egg of the
-// Patchling that coaches exactly that. The egg hatches on the spot.
+// Meet Sojo. The first-run ceremony: a retired crow sensei appears in too much smoke on a mountain
+// above the cloud provider, asks what goes wrong in your work with agents, reads it, and hands you
+// the egg of the Patchling that coaches exactly that. Then he leaves, and you tap the egg open.
 //
 //   node sensei.js                      the full ceremony (needs a real terminal, 96x31 or larger)
 //   node sensei.js --launch [--wait]    open the ceremony in a tmux popup or a new terminal window
@@ -9,7 +9,7 @@
 //   node sensei.js --ailment "text"     answer ahead of time (also --ailment-file <path>, or - for stdin)
 //   node sensei.js --plain | --json     no animation: print the reading (for agents and pipes)
 //   node sensei.js --result             show the Patchling you were given
-//   --dry-run   don't save   --reroll   replace an existing Patchling   --fast   hurry the old man
+//   --dry-run   don't save   --reroll   replace an existing Patchling   --fast   hurry the old crow
 //
 // State goes to ~/.hatchwork/state.json (HATCHWORK_HOME overrides), the same file patch.js reads.
 'use strict';
@@ -83,8 +83,8 @@ function summary(D, r, { color = true, saved = true } = {}) {
   L.push(d(c.blurb || ''));
   L.push(`  “${c.voice}”`);
   L.push('');
-  L.push(`${g("Sōjōbō's reading")}  ${r.way}`);
-  L.push(`  ${P.kanji}  ${d(P.romaji)}: ${P.gloss}`);
+  L.push(`${g("Sojo's reading")}  ${r.way}`);
+  L.push(`  ${d('as they say up there:')} ${P}`);
   if (r.quote) L.push(`  ${d('you said:')} "${r.quote}"`);
   L.push(`  ${d('first lesson:')} ${r.lesson}`);
   L.push('');
@@ -102,16 +102,30 @@ function ailmentArg(args) {
 }
 
 // ---- the ceremony --------------------------------------------------------------------------------
+const NAME = 'SOJO', NAME_C = '#e98a5a';
+const STARS = { common: 1, uncommon: 2, rare: 3, legendary: 4 };
+const RARITY_LINE = {
+  common: 'A common Patchling! Reliable, like a test that actually runs!',
+  uncommon: 'An uncommon Patchling! Rarer than a PR with a description!',
+  rare: 'A RARE Patchling! Rarer than green CI on the first try!',
+  legendary: 'The mountain shakes. The duck stands up. Tea ripples in the empty mug. A LEGENDARY Patchling!!',
+};
+const EXAMPLES = [
+  'it confidently uses an API from two versions ago', 'the diffs are too big to review so I skim them',
+  "it says done and I find out in prod that it wasn't", 'I paste in too much and it loses the plot',
+  'it apologizes, then does the exact same thing again',
+];
+
 async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex(), stdin = process.stdin, stdout = process.stdout } = {}) {
   const St = require('./sensei/stage.js');
-  const SJ = require('./sensei/sojobo.js');
+  const SJ = require('./sensei/sojo.js');
   const BW = St.SW, BH = St.SH / 2 + 1 + 6; // 96 x 31
   const scene = St.scenery(), cv = new St.Canvas(), R = St.rng(Date.now() & 0xffff);
   const kit0 = D.kit({ sprites: {} });
-  const DT = 66;
+  const DT = 66, auto = ailment != null;
 
-  const S = { t: 0, ms: 0, fade: 0, dim: 0, flash: 0, particles: [], sensei: null, senseiAlpha: 0, act: 'idle', pose: 'idle', sx: 31, sy: 3, ringGlow: 0, egg: null, creature: null, meteor: null, skip: false, tweens: [] };
-  const DLG = { name: '', text: '', lines: [], shown: 0, typing: false, budget: 0, hint: '', input: false, buf: '', submitted: false, nameColor: '#e2564c', italic: false, placeholder: 0 };
+  const S = { t: 0, ms: 0, fade: 0, dim: 0, flash: 0, shake: 0, wob: 0, rays: 0, particles: [], sensei: null, senseiAlpha: 0, act: 'idle', pose: 'idle', sx: 28, sy: 1, ringGlow: 0, egg: null, creature: null, mug: null, duck: { dy: 0, worry: 0 }, meteor: null, skip: false, tap: false, tapMode: false, tweens: [] };
+  const DLG = { name: '', text: '', lines: [], shown: 0, typing: false, budget: 0, hint: '', input: false, buf: '', submitted: false, nameColor: NAME_C, italic: false };
   const CAP = { text: '', color: '#a59cc9', italic: true };
   const waiters = new Set();
   const until = cond => new Promise(res => waiters.add({ cond, res }));
@@ -132,11 +146,12 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
     stdin.pause?.();
     w('\x1b[?2004l\x1b[0m\x1b[2J\x1b[?25h\x1b[?1049l');
   };
-  const abort = () => { cleanup(); stdout.write('Sōjōbō bows and steps back into the cedars. Come back when you are ready.\n'); process.exit(130); };
+  const abort = () => { cleanup(); stdout.write('Ceremony interrupted. Sojo understands. He has also hit Ctrl+C on things he should have let finish. Run it again any time.\n'); process.exit(130); };
 
   function onKey(buf) {
     let s = buf.toString('utf8');
     if (s.includes('\u0003')) return abort();
+    if (DLG.input && auto) return; // the answer is already written; it types itself
     if (DLG.input) {
       const pasted = s.startsWith('\x1b[200~');
       if (pasted) s = s.replace(/\x1b\[20[01]~/g, '').replace(/[\r\n]+/g, ' ');
@@ -152,6 +167,7 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
       }
       return;
     }
+    if (S.tapMode && /^[ \r\n]+$/.test(s)) { S.tap = true; return; }
     if (DLG.typing) { DLG.shown = DLG.text.length; DLG.typing = false; return; }
     S.skip = true;
   }
@@ -166,21 +182,16 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
     let body;
     if (DLG.input) {
       const caret = Math.floor(S.t / 7) % 2 ? '▌' : ' ';
-      if (!DLG.buf) {
-        const ex = ['it says done but never actually runs the tests', 'it forgets what we agreed on an hour ago', 'we go in circles on the same error', 'I merge without really reading the diff', "honestly I'm new to all of this"];
-        body = [{ s: '› ' + caret, c: '#ffd25a' }, { s: '', c: INK }, { s: `  e.g. "${ex[Math.floor(S.ms / 3200) % ex.length]}"`, c: '#6c6490', dim: true }, { s: '', c: INK }];
-      } else {
-        const wl = wrap('› ' + DLG.buf + caret, inner);
-        body = wl.slice(-4).map(s => ({ s, c: '#ffd25a' }));
-      }
+      if (!DLG.buf) body = [{ s: '› ' + caret, c: '#ffd25a' }, { s: '', c: INK }, { s: `  e.g. "${EXAMPLES[Math.floor(S.ms / 3200) % EXAMPLES.length]}"`, c: '#6c6490' }, { s: '', c: INK }];
+      else body = wrap('› ' + DLG.buf + caret, inner).slice(-4).map(s => ({ s, c: '#ffd25a' }));
     } else {
       let left = DLG.shown;
-      body = DLG.lines.slice(0, 4).map(line => { const take = Math.max(0, Math.min(line.length, left)); left -= take + 1; return { s: line.slice(0, take), c: INK, it: DLG.italic }; });
+      body = DLG.lines.slice(0, 4).map(line => { const take = Math.max(0, Math.min(line.length, left)); left -= take + 1; return { s: line.slice(0, take), c: DLG.ink || INK, it: DLG.italic }; });
     }
     while (body.length < 4) body.push({ s: '', c: INK });
     for (const b of body) L.push(bg(PANEL) + fg(BORDER) + '│ ' + (b.it ? ITAL : '') + fg(b.c) + pad(b.s, inner) + RST + bg(PANEL) + fg(BORDER) + ' │' + RST);
-    const hint = DLG.input ? ' enter: offer your words · esc: say nothing ' : DLG.hint ? (Math.floor(S.t / 8) % 2 ? ` ${DLG.hint} ` : '   ') : '';
-    L.push(bg(PANEL) + fg(BORDER) + '╰' + '─'.repeat(BW - 3 - width(hint)) + fg('#c9a75a') + hint + fg(BORDER) + '─╯' + RST);
+    const hint = DLG.input ? ' enter: tell him · esc: say nothing ' : DLG.hint ? (Math.floor(S.t / 8) % 2 ? ` ${DLG.hint} ` : ' '.repeat(width(DLG.hint) + 2)) : '';
+    L.push(bg(PANEL) + fg(BORDER) + '╰' + '─'.repeat(BW - 3 - width(hint)) + fg('#ffd25a') + hint + fg(BORDER) + '─╯' + RST);
     return L;
   }
   function captionLine() {
@@ -188,13 +199,14 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
     return ' '.repeat(lp) + (CAP.italic ? ITAL : '') + fg(CAP.color) + t + RST + ' '.repeat(Math.max(0, BW - lp - width(t)));
   }
 
-  // pose: mouth follows the typewriter, blinks and wing-breaths when idle
+  // pose: beak follows the typewriter; blinks, feather-fluffs and sips of tea when idle
   function senseiPose() {
     if (S.act !== 'idle') return S.act;
-    if (DLG.typing && DLG.name === 'SŌJŌBŌ') return ['talk', 'talk2', 'talk', 'idle'][Math.floor(S.t / 2) % 4];
-    const k = S.t % 96;
+    if (DLG.typing && DLG.name === NAME) return ['talk', 'talk2', 'talk', 'idle'][Math.floor(S.t / 2) % 4];
+    const k = S.t % 150;
     if (k < 2 || (k > 40 && k < 43)) return 'blink';
     if (k > 70 && k < 80) return 'wings';
+    if (k > 110 && k < 128) return 'sip';
     return 'idle';
   }
   const creatureCache = new Map();
@@ -209,7 +221,7 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
     if (cols < BW || rows < BH) {
       if (!tooSmall) { w('\x1b[2J\x1b[H'); prev = []; }
       tooSmall = true;
-      w(`\x1b[H\x1b[0mSōjōbō needs a ${BW}x${BH} window to appear (this one is ${cols}x${rows}).\x1b[K\r\nWiden it, shrink the font, or press Ctrl+C.\x1b[K`);
+      w(`\x1b[H\x1b[0mNot enough mountain. Need ${BW}x${BH}, got ${cols}x${rows}.\x1b[K\r\nSojo refuses to arrive in a crawl space. Widen the window, shrink the font, or press Ctrl+C.\x1b[K`);
       return;
     }
     if (tooSmall) { tooSmall = false; w('\x1b[2J'); prev = []; }
@@ -224,14 +236,19 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
       DLG.budget += DT * speed;
       while (DLG.typing && DLG.budget >= 26) {
         const ch = DLG.text[DLG.shown++];
-        DLG.budget -= 26 + ('.?!'.includes(ch) && DLG.text[DLG.shown] === ' ' ? 300 : ',;:—'.includes(ch) ? 120 : 0);
+        DLG.budget -= 26 + ('.?!…'.includes(ch) && (DLG.text[DLG.shown] === ' ' || ch === '…') ? 300 : ',;:—'.includes(ch) ? 120 : 0);
         if (DLG.shown >= DLG.text.length) DLG.typing = false;
       }
     }
     S.pose = senseiPose();
+    // tea steam, from his mug or from the one he left behind
+    if (S.sensei && S.senseiAlpha > 0.9 && S.pose !== 'nomug' && S.t % 5 === 0) St.steam(S.particles, S.sx + (S.pose === 'sip' ? 24 : 26), S.sy + (S.pose === 'sip' ? 16 : 26), R);
+    if (S.mug && S.mug.hot && S.t % 6 === 0) St.steam(S.particles, S.mug.x + 1, S.mug.y - 1, R);
+    S.shake = S.shake > 0.3 ? S.shake * 0.82 : 0;
+    if (S.egg) { S.wob = S.wob > 0.05 ? S.wob * 0.9 : 0; S.egg.wx = Math.round(Math.sin(S.t * 1.9) * S.wob * 1.6); }
     if (S.pet) {
       const talking = DLG.typing && DLG.name === S.pet.c.name.toUpperCase();
-      S.creature = { g: creatureGrid(S.pet.c, talking ? 'talk' : S.pet.mood), pal: S.pet.pal, x: 20, y: 3, scale: 2, light: S.pet.light || 0 };
+      S.creature = { g: creatureGrid(S.pet.c, talking ? 'talk' : S.pet.mood), pal: S.pet.pal, x: 20, y: 3, scale: 2, light: S.pet.light || 0, sil: S.pet.sil || 0 };
     }
     St.compose(cv, scene, S, S.t);
     const out = St.toRows(cv);
@@ -246,26 +263,41 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
   }
 
   async function say(name, text, o = {}) {
-    Object.assign(DLG, { name, text, lines: wrap(text, BW - 6), shown: 0, typing: true, budget: 0, hint: '', italic: !!o.italic, nameColor: o.color || (name === 'SŌJŌBŌ' ? '#e2564c' : '#f0c75e') });
+    if (o.act) S.act = o.act;
+    Object.assign(DLG, { name, text, lines: wrap(text, BW - 6), shown: 0, typing: true, budget: 0, hint: '', italic: !!o.italic, ink: o.ink, nameColor: o.color || (name === NAME ? NAME_C : '#f0c75e') });
     S.skip = false;
     await until(() => !DLG.typing);
+    if (o.act) S.act = 'idle';
     DLG.hint = o.final ? 'press any key' : '▼';
     const end = S.ms + (o.hold ?? Math.max(2600, text.length * 42));
     S.skip = false;
     await until(() => S.skip || (!o.final && S.ms >= end));
     S.skip = false; DLG.hint = '';
   }
+  // Narration that types out and moves on without waiting for a key.
+  async function narrate(text, o = {}) {
+    Object.assign(DLG, { name: '', text, lines: wrap(text, BW - 6), shown: 0, typing: true, budget: 0, hint: '', italic: o.italic ?? true, ink: o.ink });
+    await until(() => !DLG.typing);
+  }
   async function ask() {
     Object.assign(DLG, { name: 'YOU', nameColor: '#ffd25a', text: '', lines: [], input: true, buf: '', submitted: false, hint: '' });
-    if (ailment != null) {
+    if (auto) {
       await wait(1200);
-      for (const ch of ailment.replace(/\s+/g, ' ')) { DLG.buf += ch; await wait(ch === ' ' ? 70 : 34 + Math.random() * 30); }
+      for (const ch of ailment.replace(/\s+/g, ' ')) { DLG.buf += ch; await wait(ch === ' ' ? 70 : 34 + R() * 30); }
       await wait(900);
     } else await until(() => DLG.submitted);
     DLG.input = false;
     return DLG.buf.trim();
   }
-  const clearDialog = () => Object.assign(DLG, { name: '', text: '', lines: [], shown: 0, typing: false, hint: '' });
+  // Wait for a tap on the egg. Nobody is left hanging: it taps itself after a while.
+  async function tapWait(ms) {
+    S.tap = false; S.tapMode = true; DLG.hint = 'tap the egg: space or enter';
+    const end = S.ms + (auto ? Math.min(ms, 1500) : ms);
+    await until(() => S.tap || S.ms >= end);
+    S.tapMode = false; DLG.hint = '';
+  }
+  const clearDialog = () => Object.assign(DLG, { name: '', text: '', lines: [], shown: 0, typing: false, hint: '', ink: null });
+  const hop = (set, h, up = 90, down = 160) => tween(set, 0, -h, up).then(() => tween(set, -h, 0, down));
 
   // go
   w('\x1b[?1049h\x1b[?25l\x1b[2J\x1b[?2004h');
@@ -278,109 +310,188 @@ async function ceremony({ ailment = null, dryRun = false, speed = 1, D = loadDex
 
   let result;
   try {
-    caption('鞍馬山   ·   Mount Kurama   ·   the hour of the ox');
+    caption('Somewhere above the cloud provider  ·  3:07 a.m.  ·  the hour of the rollback');
     await tween(v => (S.fade = v), 0, 1, 1800);
-    await wait(700);
+    await wait(900);
     S.meteor = S.t + 3;
     await wait(1300);
-    caption('Somewhere in the cedars, a staff rings.');
-    await wait(1700);
-    caption('shan.', '#e9c25a', false); await wait(700);
-    caption('shan.    shan.', '#e9c25a', false); await wait(900);
+    caption('A bell.'); await wait(1100);
+    caption('A bell. A slurp of tea.'); await wait(1300);
+    caption('A bell. A slurp of tea. Another bell.'); await wait(1300);
 
-    // smoke, a gust of feathers, and he is there
+    // smoke, a gust of feathers, and he is there. Too much smoke.
     caption('');
-    St.puff(S.particles, 48, 26, 60, R, { spread: 30, speed: 1.2, life: 36, size: 3.2 });
-    St.feathers(S.particles, 20, 76, 16, R);
-    Object.assign(S, { sensei: SJ, act: 'glow', senseiAlpha: 0, ringGlow: 1, flash: 0.55 });
-    tween(v => (S.flash = v), 0.55, 0, 450);
+    St.puff(S.particles, 48, 24, 70, R, { spread: 32, speed: 1.2, life: 44, size: 3.4 });
+    St.feathers(S.particles, 20, 76, 14, R);
+    Object.assign(S, { sensei: SJ, act: 'raise', senseiAlpha: 0, ringGlow: 1, flash: 0.5 });
+    tween(v => (S.flash = v), 0.5, 0, 450);
     tween(v => (S.ringGlow = v), 1, 0, 1600);
     await tween(v => (S.senseiAlpha = v), 0, 1, 1100);
+    St.puff(S.particles, 46, 14, 26, R, { spread: 18, speed: 0.6, life: 40, size: 2.6 });
     await wait(500);
     S.act = 'idle';
-    await wait(500);
 
-    await say('SŌJŌBŌ', 'So. Another one climbs Kurama in the middle of the night, carrying a machine that writes.');
-    await say('SŌJŌBŌ', 'I am Sōjōbō, king of the tengu of this mountain. I taught Yoshitsune the sword when he was a boy who could not lift one. These days my students bring agents instead of swords.');
-    await say('SŌJŌBŌ', 'Everyone who reaches this gate carries something. Prompts that miss. Agents that wander off. Tests nobody ran. Sessions that forget their own name.');
-    await say('SŌJŌBŌ', 'So tell me what ails your work with agents. Where do you stall? What keeps going wrong? Say all of it, as it comes. I have heard worse.', { hold: 1400 });
+    await say(NAME, '*cough* — Too much smoke. Every time. *cough* Like a tool call that returns forty thousand lines.', { act: 'cough' });
+    await say(NAME, 'Sojobo. Sojo is fine. Only recruiters use the whole thing. I am a retired crow. Crows hoard shiny things. I hoard good commit messages. I have eleven.');
+    await say(NAME, 'Everyone comes up the mountain the same way: tired, holding a diff they did not write.');
+    await say(NAME, 'Agents in circles. Agents in a fix-retry loop until the laptop gets warm. Context windows packed like a junk drawer. Reviews approved with one thumb. Sit. It is fine.');
+    S.act = 'sip'; await wait(1100); S.act = 'idle';
+    await say(NAME, 'So. When you work with agents, what goes wrong? Do not tidy it up. Type it the way you would complain to the duck.', { hold: 1200 });
+    S.act = 'look'; wait(700).then(() => { if (S.act === 'look') S.act = 'idle'; }); // glance at the duck while the box opens
 
-    caption('Type freely. He is listening.', '#6c6490');
+    caption('Type freely. The duck is also listening.', '#6c6490');
     const text = await ask();
-    caption('Sōjōbō closes his eyes. The cedars go quiet.');
+    caption('Sojo reads it twice, then glances at the duck. The duck says nothing.');
     Object.assign(DLG, { name: 'YOU', text: text || '…', lines: wrap(text || '…', BW - 6), shown: 9999, typing: false, italic: true, nameColor: '#ffd25a' });
-    S.act = 'think';
     result = ORACLE.read(text, D.creatures);
-    await wait(2600);
+    S.act = 'squint'; await wait(1400);
+    S.act = 'look'; await wait(1100);
+    S.act = 'think'; await wait(800);
     S.act = 'idle'; caption('');
 
-    const r = result, P = r.proverb, aura = AURA[r.path] || AURA.craft;
-    if (!text) await say('SŌJŌBŌ', 'Nothing? Good. An empty cup is an honest one. Most people come up here already full.');
-    else if (r.quote) await say('SŌJŌBŌ', `"${r.quote}"`, { hold: 1600 });
-    await say('SŌJŌBŌ', ORACLE.PATHS[r.path].hear);
-    caption(`${P.kanji}   ·   ${P.romaji}`, '#e9c25a', false);
-    await say('SŌJŌBŌ', `There is an old saying on this mountain. ${cap(P.gloss)}`);
-    caption('');
-    await say('SŌJŌBŌ', `Your path is ${r.way}.` + (r.second ? ` And under it, a smaller stone: ${ORACLE.PATHS[r.second].way}.` : ''));
+    const r = result, aura = AURA[r.path] || AURA.craft;
+    if (!text) await say(NAME, 'Silence. Honest, at least. The duck also says nothing, and it is the best reviewer I know.');
+    else if (r.quote) {
+      const q = /[.!?…]$/.test(r.quote) ? r.quote : r.quote + '.';
+      wait(2200).then(() => hop(v => (S.duck.dy = v), -1, 120, 160)).then(() => hop(v => (S.duck.dy = v), -1, 120, 160));
+      await say(NAME, `“${q}” The duck has heard that one before. The duck nodded. Ducks do not nod lightly.`);
+    }
+    await say(NAME, ORACLE.PATHS[r.path].hear);
+    await say(NAME, `There is a saying up here: ${r.proverb}`);
+    S.act = 'sip'; await wait(1000); S.act = 'idle';
+    await say(NAME, `Your path is ${r.way}.` + (r.second ? ` Also a little of ${ORACLE.PATHS[r.second].way}. Nobody has just one problem.` : ''));
 
-    // the staff rises; light gathers into an egg
+    // the bell rings; light gathers into an egg. Mostly egg.
     clearDialog();
     S.act = 'raise';
-    caption('He lifts the shakujō. Its rings begin to hum.');
-    const ring = { x: S.sx + 4.5, y: S.sy + 2.8 };
-    for (let i = 0; i < 4; i++) { St.motes(S.particles, ring.x, ring.y, 14, R); await wait(380); }
+    await wait(150);
+    const bell = St.bellAt(S);
+    caption('The bell rings once. Light gathers, folds, and becomes an egg.');
+    for (let i = 0; i < 4; i++) { St.motes(S.particles, bell.x, bell.y, 14, R); await wait(380); }
     S.act = 'glow';
     await tween(v => (S.ringGlow = v), 0, 1.4, 700);
     const eggRows = kit0.EGG, eggPal = D.EGG_PAL;
-    S.egg = { rows: eggRows, pal: eggPal, x: ring.x - 6, y: ring.y - 7, scale: 1, aura: St.hex(aura), glow: 0, alpha: 0, light: 1 };
+    S.egg = { rows: eggRows, pal: eggPal, x: bell.x - 6, y: bell.y - 7, scale: 1, aura: St.hex(aura), glow: 0, alpha: 0, light: 1 };
     tween(v => (S.egg.alpha = v), 0, 1, 500);
     tween(v => (S.egg.glow = v), 0, 1.4, 500);
     await wait(400);
-    tween(v => (S.egg.x = v), ring.x - 6, 44, 1700);
-    tween(v => (S.egg.y = v), ring.y - 7, 22, 1700);
+    tween(v => (S.egg.x = v), bell.x - 6, 44, 1700);
+    tween(v => (S.egg.y = v), bell.y - 7, 22, 1700);
     tween(v => (S.egg.light = v), 1, 0.15, 1700);
     tween(v => (S.ringGlow = v), 1.4, 0, 1700);
     await wait(1700);
     S.act = 'idle';
-    caption('An egg, warm as a hand, glowing the color of your path.', aura, true);
-    await say('SŌJŌBŌ', `Take it. Something inside has been waiting for a student exactly like you. ${cap(r.charge)}`);
-    await say('SŌJŌBŌ', 'Raise it. Do what it says, even when it is small and you are tired. When you grow, it grows. Now go. The mountain is cold.');
+    caption('The bell rings once. Light gathers, folds, and becomes an egg. Mostly egg.', aura);
+    await wait(900);
+    await say(NAME, `This is yours. It walks ${r.way}. ${cap(r.charge)}`);
+    await say(NAME, 'Raise it. Listen to it. It will be right more often than your agent, and it will apologize less.');
+    await say(NAME, 'I will not stay for the hatch. I have watched enough things break on their first run. Also, this robe is dry-clean only.');
 
-    // he leaves the way he came
+    // he leaves the way he came. Most of him.
     clearDialog(); caption('');
-    S.act = 'raise';
-    St.puff(S.particles, 48, 24, 70, R, { spread: 34, speed: 1.3, life: 40, size: 3.4 });
-    St.feathers(S.particles, 18, 78, 22, R);
+    S.act = 'nomug';
+    S.mug = { x: S.sx + 24, y: S.sy + 26, hot: true };
+    St.puff(S.particles, 48, 22, 80, R, { spread: 34, speed: 1.3, life: 42, size: 3.4 });
+    St.feathers(S.particles, 18, 78, 20, R);
     tween(v => (S.dissolve = v), 0, 1, 900);
     await tween(v => (S.senseiAlpha = v), 1, 0, 1000);
     S.sensei = null; S.dissolve = 0;
-    await wait(700);
-    caption('He is gone. Only feathers, and the egg.');
-    await wait(1800);
+    await wait(1100); // the mug hangs in the air a moment, as mugs do
+    const m0 = { x: S.mug.x, y: S.mug.y };
+    await tween(v => { S.mug.x = m0.x + 9 * v; S.mug.y = m0.y + (37 - m0.y) * v * v; }, 0, 1, 420);
+    S.mug.hot = false; S.shake = 2; St.puff(S.particles, S.mug.x + 4, 44, 6, R, { spread: 6, speed: 0.4, life: 12, size: 1.4 });
+    caption('clink.', '#d8d2e8', false);
+    await wait(1100);
+    caption('Only the chipped mug remains. From somewhere in the clouds, faintly: “…my tea.”');
+    await wait(3000);
 
-    // the hatch, under a spotlight
+    // the hatch, under a spotlight, and the egg is in no hurry
     caption('');
-    tween(v => (S.dim = v), 0, 1, 1100);
     S.auraRGB = St.hex(aura);
+    tween(v => (S.dim = v), 0, 1, 1100);
     S.egg.shadow = true; S.egg.groundY = 46;
     await tween(v => (S.egg.y = v), 22, 32, 1300);
-    await say('', 'Oh? The egg is moving.', { hold: 1100, italic: true });
-    S.flash = 0.7; tween(v => (S.flash = v), 0.7, 0, 400);
-    S.egg = { rows: eggRows, pal: eggPal, x: 20 + kit0.eggHome.x * 2, y: 3 + kit0.eggHome.y * 2, scale: 2, aura: St.hex(aura), glow: 1, shadow: false };
-    await wait(500);
-    const c = r.creature, pal = D.paletteOf(c), fr = D.frames(c);
-    if (c.hatch) Object.assign(DLG, { name: '', text: c.hatch, lines: wrap(c.hatch, BW - 6), shown: 0, typing: true, budget: 0, italic: true, hint: '' });
-    S.egg.glow = 0.6;
-    S.egg = null;
-    for (const f of fr) { S.creature = { g: f.g, pal: f.pal || pal, x: 20, y: 3, scale: 2 }; await wait(f.ms * 1.15); }
-    S.pet = { c, pal, mood: 'happy' };
-    S.flash = 0.45; tween(v => (S.flash = v), 0.45, 0, 500);
-    await until(() => !DLG.typing);
-    await wait(600);
+    S.flash = 0.5; tween(v => (S.flash = v), 0.5, 0, 400);
+    S.egg = { rows: eggRows, pal: eggPal, x: 20 + kit0.eggHome.x * 2, y: 3 + kit0.eggHome.y * 2, scale: 2, aura: St.hex(aura), glow: 1, leak: 0 };
+    await wait(700);
 
+    S.wob = 2.2; S.shake = 0.8;
+    await narrate('The egg wobbles. Then wobbles harder, like it just read a stack trace.');
+    S.wob = 3; await wait(1600);
+    S.wob = 0;
+    await narrate('…Nothing happens. Eggs are like builds. Slower when watched.');
+    await wait(500);
+
+    const tapLines = ['Tap. Something taps back.', 'Tap! A hairline crack, spreading like a flaky test!', 'TAP! It shakes like a pager at 3 a.m.!'];
+    for (let n = 1; n <= 3; n++) {
+      await tapWait(n === 1 ? 9000 : 7000);
+      S.shake = 1 + n; S.wob = 1.2 + n * 0.7;
+      St.puff(S.particles, 48, 45, 3 + n * 3, R, { spread: 16, speed: 0.5, life: 14, size: 1.5 });
+      hop(v => (S.egg.wy = v), 1 + n);
+      if (n === 1) { tween(v => (S.egg.glow = v), 1, 1.6, 300); wait(500).then(() => { if (S.egg) { S.wob = 1.5; hop(v => (S.egg.wy = v), 1); } }); }
+      if (n === 2) { S.egg.rows = kit0.EGG_C1; tween(v => (S.egg.leak = v), 0, 0.45, 400); }
+      if (n === 3) { S.egg.rows = kit0.EGG_C2; tween(v => (S.egg.leak = v), 0.45, 1, 400); hop(v => (S.duck.dy = v), 2); St.sparks(S.particles, 48, 27, 10, R, S.auraRGB); }
+      await narrate(tapLines[n - 1], { italic: false });
+      await wait(n === 3 ? 900 : 400);
+    }
+
+    // the false alarm
+    S.wob = 0;
+    tween(v => (S.egg.leak = v), 1, 0.08, 1400);
+    tween(v => (S.egg.glow = v), 1.6, 0.25, 1400);
+    await narrate('…Still. Not a sound. Did you break it?');
+    tween(v => (S.duck.worry = v), 0, 1, 400);
+    await narrate('…Still. Not a sound. Did you break it? The duck looks concerned. …');
+    await wait(1300);
+    for (let i = 0; i < 2; i++) { // thump. thump.
+      S.shake = 1.2; S.egg.glow = 1.6; S.egg.leak = 0.6;
+      tween(v => (S.egg.glow = v), 1.6, 0.3, 320); tween(v => (S.egg.leak = v), 0.6, 0.1, 320);
+      await wait(520);
+    }
+    await wait(250);
+
+    // the burst
+    S.flash = 0.95; tween(v => (S.flash = v), 0.95, 0, 700);
+    S.shake = 6; S.duck.worry = 0;
+    St.sparks(S.particles, 48, 30, 46, R, S.auraRGB); St.sparks(S.particles, 48, 30, 20, R);
+    const c = r.creature, pal = D.paletteOf(c), fr = D.frames(c);
+    const intro = kit0.eggIntro().map(f => JSON.stringify(kit0.toGrid(f.g)));
+    let k = 0;
+    while (k < fr.length && k < intro.length && JSON.stringify(fr[k].g) === intro[k]) k++;
+    const rest = fr.slice(k).length ? fr.slice(k) : [{ g: D.kit(c).at('idle'), ms: 600 }];
+    S.egg = null;
+    narrate('The shell pops like a merge with no conflicts! Light floods the mountain!', { italic: false });
+    tween(v => (S.rays = v), 0, 1, 1200);
+    for (const f of rest) { S.creature = { g: f.g, pal: f.pal || pal, x: 20, y: 3, scale: 2, sil: 1 }; await wait(f.ms * 1.15); }
+    S.pet = { c, pal, mood: 'idle', sil: 1 };
+    await until(() => !DLG.typing);
+    await wait(500);
+
+    // who's that Patchling
+    await say('', "Who's that Patchling?!", { hold: 1500, color: aura, ink: '#ffd25a' });
+    clearDialog();
+    const n = STARS[c.rarity] || 1;
+    caption('·  ·  ·', '#6c6490', false); await wait(900);
+    for (let i = 1; i <= n; i++) {
+      caption(Array.from({ length: 4 }, (_, j) => (j < i ? '★' : '·')).join('  '), '#e9c25a', false);
+      S.shake = 0.6 + i * 0.4; St.sparks(S.particles, 48, 8, 6, R, [255, 220, 120]);
+      await wait(500 + i * 220);
+    }
+    if (c.rarity === 'legendary') { S.shake = 5; tween(v => (S.duck.dy = v), 0, -3, 300); S.flash = 0.4; tween(v => (S.flash = v), 0.4, 0, 500); }
+    await say('', RARITY_LINE[c.rarity] || RARITY_LINE.common, { hold: 1800, color: aura });
+
+    // color floods in
+    clearDialog();
+    S.flash = 0.6; tween(v => (S.flash = v), 0.6, 0, 600);
+    St.sparks(S.particles, 48, 26, 40, R, S.auraRGB);
+    tween(v => (S.rays = v), 1, 0, 1500);
+    tween(v => (S.dim = v), 1, 0.35, 1600);
+    await tween(v => (S.pet.sil = v), 1, 0, 900);
+    S.pet.mood = 'happy';
+    S.duck.dy = 0;
     const name = c.name.toUpperCase();
-    caption(`${c.name}   ·   ${c.species}   ·   ${c.rarity}   ·   path of ${r.path}`, aura, false);
-    await say('', `${name} hatched from the egg!`, { hold: 1800, color: aura });
+    caption(`${c.name}   ·   ${c.species}   ·   ${'★'.repeat(n)} ${c.rarity}   ·   path of ${r.path}`, aura, false);
+    await say('', `It's ${c.name}!`, { hold: 1800, color: aura, ink: aura });
     S.pet.mood = 'idle';
     await say(name, c.voice, { color: aura, hold: 2200 });
     await say('YOUR PATCHLING', `${c.coaching}`, { color: aura });
@@ -414,7 +525,7 @@ function launch(args) {
   let how = null;
 
   if (process.env.TMUX) {
-    const p = spawn('tmux', ['display-popup', '-E', '-w', '100', '-h', '33', '-T', ' Sōjōbō · Mount Kurama ', cmd], { stdio: 'ignore', detached: true });
+    const p = spawn('tmux', ['display-popup', '-E', '-w', '100', '-h', '33', '-T', ' Sojo · somewhere above the cloud provider ', cmd], { stdio: 'ignore', detached: true });
     p.unref();
     how = 'a tmux popup';
   } else if (process.platform === 'darwin') {
@@ -428,7 +539,7 @@ function launch(args) {
     console.log(`Open a terminal (96x31 or larger) and run:\n\n  ${cmd}\n`);
     return { how: null, cmd };
   }
-  console.log(`Sōjōbō is waiting in ${how}. Answer him there.`);
+  console.log(`Sojo is waiting in ${how}. Answer him there.`);
   return { how, cmd, resultFile };
 }
 // The ceremony window writes its outcome to resultFile on exit (hatched, dry run, or walked away).
@@ -464,7 +575,7 @@ async function main() {
   const existing = readState();
   if (existing && !reroll && !dryRun) {
     const c = D.creatures.find(x => x.id === existing.id);
-    console.log(`You already carry ${c ? c.name : existing.id}. Sōjōbō does not hand out a second egg lightly: use --reroll to replace it, or --dry-run to watch the ceremony.`);
+    console.log(`You already carry ${c ? c.name : existing.id}. Sojo does not hand out a second egg; he only has so much tea. Use --reroll to replace it, or --dry-run to watch the ceremony.`);
     process.exit(flag('--launch') ? 0 : 2);
   }
 
@@ -491,7 +602,7 @@ async function main() {
   const plain = flag('--plain') || flag('--json') || !process.stdout.isTTY || !process.stdin.isTTY;
   if (plain) {
     if (pre == null) {
-      console.error('Sōjōbō needs a real terminal to appear. Use --launch to open one, or answer ahead of time:\n  node sensei.js --plain --ailment "what keeps going wrong with your agents"');
+      console.error('Sojo needs a real terminal to appear. Use --launch to open one, or answer ahead of time:\n  node sensei.js --plain --ailment "what keeps going wrong with your agents"');
       process.exit(2);
     }
     const r = ORACLE.read(pre, D.creatures);
@@ -501,7 +612,7 @@ async function main() {
       const c = r.creature;
       console.log(JSON.stringify({ creature: { id: c.id, name: c.name, species: c.species, rarity: c.rarity, voice: c.voice, coaching: c.coaching }, path: r.path, second: r.second, way: r.way, proverb: r.proverb, quote: r.quote, reading: r.reading, lesson: r.lesson, saved: !!st, state: st ? STATE : null }, null, 1));
     } else {
-      console.log(r.reading.map(l => `Sōjōbō: ${l}`).join('\n') + `\nSōjōbō: ${cap(r.charge)}\n`);
+      console.log(r.reading.map(l => `Sojo: ${l}`).join('\n') + `\nSojo: ${cap(r.charge)}\n`);
       console.log(summary(D, r, { color: process.stdout.isTTY, saved: !!st }));
     }
     return;

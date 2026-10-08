@@ -1,4 +1,4 @@
-// Sōjōbō's reading: turn what a student says ails them into a path (one of the eight habits) and a
+// Sojo's reading: turn what a student says ails them into a path (one of the eight habits) and a
 // Patchling that coaches it. Pure and offline: keyword evidence, no model calls, same words → same egg.
 'use strict';
 
@@ -114,60 +114,60 @@ const KIN = {
   cinder: ['recovery', 'autonomy', /\broll ?back\b|\brevert\b|\bcheckpoints?\b|\bstash\b|\bundo\b|\bwreck|\blost (my |all )?(work|changes)\b|\btook down\b/],
 };
 
-// What Sōjōbō says for each path. Proverbs are real Japanese sayings; the rest is his.
+// What Sojo says for each path. Proverbs are borrowed, bent, or made up on the mountain; the rest is his.
 const PATHS = {
   prompting: {
-    way: 'the Way of the Spoken Spirit', kanji: '言霊', romaji: 'kotodama', gloss: 'words carry spirit. choose them, and they will be obeyed.',
-    hear: 'You ask for one thing and are handed another. The fault lives in the asking.',
-    charge: 'it will make you say what done looks like before the work begins.',
+    way: "the Way of the Clear Ask", proverb: "A vague question gets a confident answer to some other question.",
+    hear: "I hear prompts like “make it better.” Better how? The agent guessed. It guessed wrong, with excellent formatting.",
+    charge: "it will make you state the goal, the constraints, and what done looks like before you hit enter.",
     lesson: 'name the files, the constraints, and what done looks like in your first message.',
   },
   planning: {
-    way: 'the Way of the Long Road', kanji: '急がば回れ', romaji: 'isogaba maware', gloss: 'when you are in a hurry, take the long way round.',
-    hear: 'You run before you have walked the road once in your mind.',
-    charge: 'it will make you draw the map before you take the first step.',
+    way: "the Way of the Map", proverb: "Hours of debugging can save you minutes of planning.",
+    hear: "I hear four thousand lines and no plan. The agent did not get lost. It never knew where it was going.",
+    charge: "it will make you sketch the steps, the files, and the risks before the agent writes a line.",
     lesson: 'ask for a plan (or a failing test) before the first edit.',
   },
   research: {
-    way: 'the Way of the Wide Ocean', kanji: '井の中の蛙大海を知らず', romaji: 'i no naka no kawazu taikai wo shirazu', gloss: 'the frog in the well knows nothing of the ocean.',
-    hear: 'Your agent writes before it has looked around. It sees only the walls of its own well.',
-    charge: 'it will make you look first, and cut second.',
+    way: "the Way of Reading First", proverb: "Trust, but read the source.",
+    hear: "I hear an agent calling a function that does not exist. It hallucinated an API. You believed it. You were both very sure.",
+    charge: "it will make the agent read the real code and docs before it writes against them.",
     lesson: 'let it read and search before it writes. "look first" is a fine prompt.',
   },
   autonomy: {
-    way: 'the Way of the Reins', kanji: '猿も木から落ちる', romaji: 'saru mo ki kara ochiru', gloss: 'even monkeys fall from trees.',
-    hear: 'You hand the agent the whole mountain, or you never let it out of your grip.',
-    charge: 'it will teach you when to loosen the reins and when to hold them tight.',
+    way: "the Way of the Short Leash", proverb: "Trust the agent. Also, tie up your camel.",
+    hear: "I hear an agent with too many permissions and too little supervision. YOLO mode is a fine name for a band. Less so for prod.",
+    charge: "it will make you decide what the agent may touch, what it must ask about, and where it stops.",
     lesson: 'hand self-contained work to subagents, with the whole context packed in.',
   },
   verification: {
-    way: 'the Way of the Stone Bridge', kanji: '石橋を叩いて渡る', romaji: 'ishibashi wo tataite wataru', gloss: 'tap the stone bridge before you cross it.',
-    hear: 'The agent says "done," and you cross the bridge on its word alone.',
-    charge: 'it will make you knock on every stone. Run it, then believe it.',
+    way: "the Way of the Green Check", proverb: "“Works on my machine” is not proof. It is a confession.",
+    hear: "I hear a lot of “should work.” Should is the most expensive word in software. It costs about one incident.",
+    charge: "it will make you decide how to check the work before the work starts, then actually check it.",
     lesson: 'make it run the tests, build or lint after the last edit, not before.',
   },
   review: {
-    way: 'the Way of the Open Eye', kanji: '百聞は一見に如かず', romaji: 'hyakubun wa ikken ni shikazu', gloss: 'a hundred hearings are worth less than one look.',
-    hear: 'You trust the summary and sign your name to lines you have not seen.',
-    charge: 'it will make you read every line before it becomes yours.',
+    way: "the Path of the Second Look", proverb: "Ten lines get forty comments. Ten thousand lines get one: “LGTM.”",
+    hear: "I hear rubber-stamped pull requests. The agent wrote it, you approved it, nobody read it. That is not a review. That is a relay race.",
+    charge: "it will make you ask for small diffs and leave at least one real question on each one.",
     lesson: 'read the diff (git diff) before every commit.',
   },
   recovery: {
-    way: 'the Way of the Eighth Rising', kanji: '七転び八起き', romaji: 'nana korobi ya oki', gloss: 'fall seven times, rise eight.',
-    hear: 'When the work falls, you swing the same sword again, only harder.',
-    charge: 'it will teach you to read the error, change one thing, and rise.',
+    way: "the Way of the Graceful Retreat", proverb: "When you find yourself in a hole, stop prompting.",
+    hear: "I hear an agent in a fix-retry loop. Fix, fail, apologize, fix the same way. It is very sorry. It will do it again.",
+    charge: "it will make you stop after two failed tries, read the actual error, and change the approach.",
     lesson: 'when the same fix fails twice, stop and change the approach.',
   },
   context: {
-    way: 'the Way of the Empty Cup', kanji: '初心', romaji: 'shoshin', gloss: "beginner's mind. a full cup can hold nothing new.",
-    hear: 'Your sessions grow heavy. The agent drinks from a cup that is already full.',
-    charge: 'it will make you empty the cup: one goal per session, and notes for the next.',
+    way: "the Way of the Clean Window", proverb: "A full cup holds no more tea.",
+    hear: "I hear a context window stuffed like a junk drawer: three logs, an old plan, a file from Tuesday. The agent is not dumb. It is buried.",
+    charge: "it will make you give the agent only what it needs, and clear the rest before it gets confused.",
     lesson: 'one goal per session; /compact deliberately; put recurring lessons in AGENTS.md.',
   },
   craft: {
-    way: 'the Way of the First Step', kanji: '千里の道も一歩から', romaji: 'senri no michi mo ippo kara', gloss: 'even a thousand-mile road begins with one step.',
-    hear: 'You do not yet know where you stumble. That is honest. Most never admit it.',
-    charge: 'it watches everything, and it will find your weak stone for you.',
+    way: "the Way of the Whole Craft", proverb: "The master has failed more times than the beginner has tried.",
+    hear: "I hear a little of everything. Good. That is honest. Most trouble with agents is not one big flaw. It is many small habits.",
+    charge: "it will rotate through the basics: clear asks, small steps, real tests, careful reviews.",
     lesson: 'name the files, the constraints, and what done looks like in your first message.',
   },
 };
@@ -176,7 +176,6 @@ const RARITY_W = { common: 55, uncommon: 28, rare: 13, legendary: 4 };
 
 function hash(s) { let h = 2166136261; for (const ch of s) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rng(seed) { let a = seed; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const cap = s => s[0].toUpperCase() + s.slice(1);
 
 // Split into clauses so the quote is the student's own sentence, not the whole confession.
 function clauses(text) {
@@ -248,7 +247,7 @@ function read(text, creatures) {
     let roll = r() * tw;
     for (const x of pool) { roll -= RARITY_W[x.c.rarity] || 1; if (roll < 0) { pick = x; break; } }
   }
-  // The path follows the egg, so what Sōjōbō says and what hatches agree.
+  // The path follows the egg, so what Sojo says and what hatches agree.
   const c = pick.c, path = pick.habit || 'craft', P = PATHS[path];
   const rest = HABITS.filter(h => h !== path).sort((a, b) => scores[b] - scores[a]);
   const second = path !== 'craft' && scores[rest[0]] >= Math.max(2, scores[path] * 0.5) ? rest[0] : null;
@@ -257,11 +256,11 @@ function read(text, creatures) {
   const reading = [];
   if (said) reading.push(`You said: "${said}"`);
   reading.push(P.hear);
-  reading.push(`${P.kanji}. ${P.romaji}. ${cap(P.gloss)}`);
-  reading.push(`Your path is ${P.way}.` + (second ? ` And beneath it, a smaller weight: ${PATHS[second].way}.` : ''));
+  reading.push(`As they say up here: ${P.proverb}`);
+  reading.push(`Your path is ${P.way}.` + (second ? ` Also a little of ${PATHS[second].way}. Nobody has just one problem.` : ''));
   return {
     text: raw, path, second, scores, quote: said,
-    way: P.way, proverb: { kanji: P.kanji, romaji: P.romaji, gloss: P.gloss }, charge: P.charge, lesson: P.lesson,
+    way: P.way, proverb: P.proverb, charge: P.charge, lesson: P.lesson,
     reading, creature: c, ranked: scored.slice(0, 5).map(x => ({ id: x.c.id, score: +x.s.toFixed(2) })),
   };
 }

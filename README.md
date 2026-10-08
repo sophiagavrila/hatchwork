@@ -30,23 +30,29 @@ The agent clones the repo and runs [`install.sh`](install.sh) (instructions for 
 ### The ceremony
 
 <p align="center">
-  <img src="docs/media/sensei.png" width="672" alt="Sōjōbō, the tengu king of Mount Kurama, under a torii at night">
+  <img src="docs/media/sensei.png" width="672" alt="Sojo, a retired crow sensei in spectacles, holding a staff and a mug of tea under a pine at night, next to a rubber duck on a rock">
 </p>
 
-At night on Mount Kurama, smoke gathers under the torii and **Sōjōbō** steps out of it with his shakujō. He is the tengu king who taught the boy Yoshitsune the sword; these days his students bring agents. He asks one question:
+It is 3:07 a.m. somewhere above the cloud provider. A bell, a slurp of tea, too much smoke, and **Sojo** steps out of it coughing: a retired crow in spectacles with a staff, a rust robe, and a chipped mug. He hoards good commit messages. A rubber duck sits on a rock nearby and has heard it all before. He asks one question:
 
-> *So tell me what ails your work with agents. Where do you stall? What keeps going wrong?*
+> *So. When you work with agents, what goes wrong? Do not tidy it up. Type it the way you would complain to the duck.*
 
-Type whatever comes to mind, as much as you want. Sōjōbō quotes your words back to you, names what he hears, and gives you a proverb and a **path** (one of the eight habits, or the Way of the Craft if you're losing your own skills). He raises his staff, the rings gather light into an egg the color of that path, and he puts it in your hands. Then he's gone. The egg rocks, cracks, and the **Patchling matched to what ails you** climbs out with its first lesson.
+Type whatever comes to mind, as much as you want. Sojo quotes your words back to you, names what he hears, and gives you a saying ("“Works on my machine” is not proof. It is a confession.") and a **path** (one of the eight habits, or the Way of the Whole Craft if you're losing your own skills). He rings his bell and the light becomes an egg the color of that path. Mostly egg. He does not stay for the hatch; the robe is dry-clean only.
+
+Then it is you, the egg, and the duck. The egg wobbles. Nothing happens. You tap it (space or enter) and it cracks, leaks light, goes quiet long enough to worry the duck, and bursts. *Who's that Patchling?!* A silhouette, a star-by-star rarity drumroll, then the color floods in: the **Patchling matched to what goes wrong for you**, with its first lesson.
+
+<p align="center">
+  <img src="docs/media/sensei-hatch.png" width="672" alt="A dark Patchling silhouette with a glowing rim and light rays: Who's that Patchling?!">
+</p>
 
 | You say something like | Path | You might hatch |
 |---|---|---|
-| "it says done but never runs the tests" | the Way of the Stone Bridge (verification) | Rivet, Dotty |
-| "long sessions it forgets my instructions" | the Way of the Empty Cup (context) | Skein, Thimble, Loam |
-| "we go in circles on the same error" | the Way of the Eighth Rising (recovery) | Ouro, Don |
-| "I merge without reading the diff" | review | Lumen |
-| "I run five agents and they step on each other" | autonomy | Byte, Tosk |
-| "I feel like I'm losing my own skills" | the Way of the Craft | Kuro, Sōjōbō's own student |
+| "it says done but never runs the tests" | the Way of the Green Check (verification) | Rivet, Dotty |
+| "long sessions it forgets my instructions" | the Way of the Clean Window (context) | Skein, Thimble, Loam |
+| "we go in circles on the same error" | the Way of the Graceful Retreat (recovery) | Ouro, Don |
+| "I merge without reading the diff" | the Path of the Second Look (review) | Lumen |
+| "I run five agents and they step on each other" | the Way of the Short Leash (autonomy) | Byte, Tosk |
+| "I feel like I'm losing my own skills" | the Way of the Whole Craft | Kuro, Sojo's own student |
 
 The reading is deterministic (same words, same egg) and runs locally: no model calls, nothing leaves your machine. The answer is stored with your Patchling in `~/.hatchwork/state.json`.
 
@@ -57,7 +63,7 @@ node sensei.js --dry-run                       # watch it without saving
 node sensei.js --fast                          # 2.5× speed (or HATCHWORK_SPEED=1.5)
 node sensei.js --plain --ailment "..."         # no animation: the reading and the hatch as text
 node sensei.js --json --ailment-file f.txt     # same, as JSON
-node sensei.js --result                        # what Sōjōbō gave you
+node sensei.js --result                        # what Sojo gave you
 node sensei.js --launch --wait                 # open the ceremony in a tmux popup / new window and wait
 ```
 
@@ -94,7 +100,7 @@ Each creature has moods (`idle`, `blink`, `talk`, `think`, `happy`, `sleep`, `fi
 
 ## The hatch
 
-On first run you get **one creature**. Installed through the [ceremony](#the-ceremony), Sōjōbō picks it for what ails you, and rarity only breaks ties; `node patch.js hatch` rolls one at random. Every egg wobbles and cracks the same way, so you can't tell what's inside. Then each creature has **its own way out**.
+On first run you get **one creature**. Installed through the [ceremony](#the-ceremony), Sojo picks it for what goes wrong for you, and rarity only breaks ties; `node patch.js hatch` rolls one at random. Every egg wobbles and cracks the same way, so you can't tell what's inside. Then each creature has **its own way out**.
 
 ```mermaid
 flowchart LR
@@ -255,8 +261,8 @@ Bar for new creatures: original (inspired by folklore, myth and dev culture; no 
 core.js            renderer, shared egg, entrance kit, evolution scene, validation, rarity roll, ANSI output
 dex.html           the Patchdex
 patch.js           your Patchling: hatch, status, evolve (state in ~/.hatchwork/)
-sensei.js          the install ceremony: Sōjōbō asks what ails you and hands you a matched egg
-sensei/            oracle.js (ailment → path → Patchling), stage.js (Kurama scene), sojobo.js (sprite)
+sensei.js          the install ceremony: Sojo asks what goes wrong and hands you a matched egg
+sensei/            oracle.js (ailment → path → Patchling), stage.js (mountain scene, duck, mug), sojo.js (sprite)
 install.sh         installer used by Copilot CLI (see AGENTS.md)
 growth.js          session scoring, mastery, XP and evolution gates
 cli.js             terminal renderer and validator

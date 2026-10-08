@@ -1,5 +1,5 @@
-// The stage for Sōjōbō's ceremony: an RGB canvas, the night gate on Mount Kurama, smoke, feathers
-// and light. Drawn into floats, composited each frame, printed as truecolor half-blocks (▀).
+// The stage for Sojo's ceremony: an RGB canvas, a mountain ledge above the clouds at 3 a.m., an old
+// pine with a lantern, a rubber duck on a rock, smoke, feathers, tea steam and light. Drawn into floats, composited each frame, printed as truecolor half-blocks (▀).
 'use strict';
 
 const SW = 96, SH = 48; // pixels; 96 columns x 24 rows in the terminal
@@ -60,6 +60,15 @@ class Canvas {
       }
     }
   }
+  // Screen shake: move everything by (dx, dy), smearing the edge pixels into the gap.
+  shift(dx, dy) {
+    if (!dx && !dy) return;
+    const src = this.d.slice(), w = this.w, h = this.h;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const sx = clamp(x - dx, 0, w - 1), sy = clamp(y - dy, 0, h - 1), i = (y * w + x) * 3, j = (sy * w + sx) * 3;
+      this.d[i] = src[j]; this.d[i + 1] = src[j + 1]; this.d[i + 2] = src[j + 2];
+    }
+  }
   scale(f, from = 0, to = this.h) { const d = this.d; for (let i = from * this.w * 3; i < to * this.w * 3; i++) d[i] *= f; }
 }
 
@@ -69,14 +78,42 @@ const C = {
   moon: hex('#f6eed6'), moonD: hex('#d8ccb0'), moonGlow: hex('#9b8fd8'),
   far: hex('#231c4a'), farLit: hex('#3d3478'), mid: hex('#16122f'), cedar: hex('#0e0b22'), cedarLit: hex('#231d4a'),
   ground0: hex('#2e2744'), ground1: hex('#17142a'), seam: hex('#1f1a33'), sheen: hex('#4a4174'),
-  torii: hex('#c8323a'), toriiD: hex('#8e1f2b'), toriiL: hex('#e2564c'), black: hex('#1a1020'), gold: hex('#e9c25a'),
-  rope: hex('#d6c088'), ropeD: hex('#9c8650'), paper: hex('#f4efe6'),
+  pine: hex('#13202a'), pineLit: hex('#2b4447'), pineD: hex('#0b141c'), bark: hex('#2a1c22'), barkLit: hex('#4a3438'),
+  string: hex('#3a3046'), lampFrame: hex('#2a2030'),
   stone: hex('#6f6886'), stoneD: hex('#47415c'), stoneL: hex('#8c84a6'), lamp: hex('#ffb04a'), lampCore: hex('#fff1c2'),
   mist: hex('#8d88bb'), smoke: hex('#d9d3ea'), smokeD: hex('#9a93b8'), feather: hex('#2a2448'), featherL: hex('#8a7cc8'),
 };
 
 const MOON = { x: 79, y: 9, r: 6.5 };
-const LAMPS = [{ x: 6, lx: 6, ly: 35 }, { x: 89, lx: 89, ly: 35 }];
+const LAMPS = [{ x: 23, lx: 23, ly: 25 }]; // one camp lantern, hanging from the pine
+const ROCK = { x: 84, y: 43, rx: 10, ry: 4.5 };
+
+// The rubber duck. Faces left, toward whatever is happening. 12x10.
+const DUCK = [
+  '....ooo.....',
+  '...oYYYo....',
+  '..oYWeYYo...',
+  'ooOOYYYYo...',
+  'oOOooYYYo...',
+  '.oo.oYYYYooo',
+  '...oYYYYYYYo',
+  '..oYWYYYYyYo',
+  '..oyYYYYYyyo',
+  '...oooooooo.',
+];
+const DUCK_PAL = { o: '#1a1020', Y: '#ffd84a', y: '#d9a12a', W: '#fff6b8', O: '#f08a2a', e: '#1a1020', s: '#7fd1ff' };
+// Sojo's chipped mug, once he is no longer holding it. 8x8.
+const MUG = [
+  'oooooo..',
+  'ohhhhwo.',
+  'oWWWWwoo',
+  'oxxxWwWo',
+  'oWWWWwWo',
+  'oWWWWwoo',
+  'owww.o..',
+  'oooo....',
+];
+const MUG_PAL = { o: '#0c0a16', W: '#f4efe6', w: '#bdb4c8', h: '#7a4a24', x: '#2f8f84' };
 
 function scenery() {
   const cv = new Canvas(), sky = new Uint8Array(SW * SH), R = rng(7);
@@ -97,6 +134,7 @@ function scenery() {
     if (d <= MOON.r && d2 > MOON.r) cv.put(x, y, C.moonD, 0.7);
   }
   [[77, 7], [81, 11], [78, 12], [76, 10]].forEach(([x, y], i) => cv.put(x, y, C.moonD, i ? 0.55 : 0.8));
+  const skyOnly = new Canvas().copy(cv);
   // far ridge, lit edge toward the moon
   const ridge = x => 25 + 3.2 * Math.sin(x * 0.075 + 0.6) + 1.8 * Math.sin(x * 0.21 + 2.1) + 0.8 * Math.sin(x * 0.55);
   for (let x = 0; x < SW; x++) {
@@ -118,32 +156,42 @@ function scenery() {
   for (let y = 40; y < SH; y++) for (let x = 0; x < SW; x++) cv.put(x, y, lerp(C.ground0, C.ground1, (y - 40) / 7));
   for (let x = 0; x < SW; x++) cv.put(x, 40, C.sheen, 0.6);
   [42, 45].forEach((y, k) => { for (let x = 0; x < SW; x++) cv.put(x, y, C.seam); for (let x = (k ? 5 : 0); x < SW; x += 11) cv.put(x, y + 1, C.seam); });
-  // stone lanterns (tōrō)
-  for (const L of LAMPS) {
-    const x = L.x;
-    cv.rect(x - 4, 31, x + 4, 32, C.stoneD); cv.rect(x - 3, 30, x + 3, 30, C.stone); cv.put(x, 29, C.stone);
-    cv.rect(x - 3, 33, x + 3, 37, C.stoneD); cv.rect(x - 2, 34, x + 2, 36, C.lamp);
-    cv.rect(x - 1, 38, x + 1, 42, C.stone); cv.rect(x - 3, 43, x + 3, 44, C.stoneD);
-    cv.rect(x - 4, 31, x - 4, 32, C.stoneL); cv.put(x - 3, 30, C.stoneL);
+  // the rock the duck lives on
+  for (let y = 36; y < SH; y++) for (let x = ROCK.x - ROCK.rx - 1; x <= ROCK.x + ROCK.rx + 1; x++) {
+    const d = ((x + 0.5 - ROCK.x) / ROCK.rx) ** 2 + ((y + 0.5 - ROCK.y) / ROCK.ry) ** 2;
+    if (d > 1 || y > 44) continue;
+    cv.put(x, y, d > 0.8 ? C.stoneD : x < ROCK.x - 2 && y < ROCK.y - 1 ? C.stoneL : C.stone);
   }
-  // torii: black kasagi with upturned ends, red shimaki, nuki, pillars, plaque
-  const P1 = [18, 21], P2 = [74, 77];
-  for (let x = 10; x <= 85; x++) { const up = x < 13 || x > 82 ? 1 : 0; cv.rect(x, 6 - up, x, 7 - up, C.black); }
-  cv.put(9, 4, C.black); cv.put(86, 4, C.black);
-  for (let x = 9; x <= 86; x++) { const up = x < 13 || x > 82 ? 1 : 0; cv.put(x, (x === 9 || x === 86 ? 3 : 5 - up), C.toriiD); }
-  cv.rect(12, 8, 83, 9, C.torii); cv.rect(12, 9, 83, 9, C.toriiD);
-  cv.rect(15, 15, 80, 16, C.torii); cv.rect(15, 16, 80, 16, C.toriiD);
-  for (const [a, b] of [P1, P2]) { cv.rect(a, 10, b, 43, C.torii); cv.rect(b, 10, b, 43, C.toriiD); cv.rect(a, 10, a, 43, C.toriiL); cv.rect(a - 1, 41, b + 1, 44, C.black); }
-  cv.rect(45, 10, 50, 14, C.black); cv.rect(46, 11, 49, 13, C.toriiD);
-  cv.put(47, 11, C.gold); cv.put(48, 12, C.gold); cv.put(47, 13, C.gold);
-  // shimenawa rope and paper shide
-  for (let x = 22; x <= 73; x++) { const sag = Math.round(2.2 * Math.sin(Math.PI * (x - 22) / 51)); cv.put(x, 17 + sag, (x % 2) ? C.rope : C.ropeD); }
-  for (const sx of [33, 48, 62]) { const y = 19 + Math.round(2.2 * Math.sin(Math.PI * (sx - 22) / 51)) - 2; [[0, 1], [1, 1], [1, 2], [0, 3], [0, 4], [1, 4], [1, 5]].forEach(([dx, dy]) => cv.put(sx + dx, y + dy, C.paper)); }
-  // sky mask so the stars twinkle only where the sky shows
+  for (let x = ROCK.x - 9; x <= ROCK.x + 9; x++) cv.put(x, 45, C.ground1, 0.8);
+  // an old pine leaning over the ledge: trunk, one long branch, flat needle pads lit from the moon side
+  const trunk = [[10, 46], [10, 42], [11, 38], [13, 33], [14, 28], [16, 23], [17, 19], [16, 15], [14, 11]];
+  for (let i = 0; i < trunk.length - 1; i++) {
+    const [x0, y0] = trunk[i], [x1, y1] = trunk[i + 1], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (let k = 0; k <= n; k++) {
+      const x = Math.round(x0 + (x1 - x0) * k / n), y = Math.round(y0 + (y1 - y0) * k / n), w = y > 38 ? 2 : y > 26 ? 1 : 1;
+      for (let dx = -w; dx <= w; dx++) cv.put(x + dx, y, dx === w ? C.barkLit : C.bark);
+    }
+  }
+  for (let x = 16; x <= 30; x++) { const y = Math.round(20 - (x - 16) * 0.28); cv.put(x, y, C.bark); cv.put(x, y + 1, x % 4 ? C.bark : C.barkLit); }
+  cv.rect(7, 43, 13, 45, C.bark, 0.9); cv.put(6, 45, C.bark); cv.put(14, 45, C.bark);
+  const pad = (cx, cy, rx, ry) => {
+    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+      const d = ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2, edge = Math.sin(x * 1.7) * 0.18;
+      if (d > 1 + edge) continue;
+      cv.put(x, y, y < cy - ry * 0.35 ? (x > cx - rx * 0.2 ? C.pineLit : C.pine) : d > 0.7 && y > cy ? C.pineD : C.pine);
+    }
+  };
+  [[9, 9, 8, 3], [22, 7, 7, 2.6], [29, 15, 6, 2.4], [6, 18, 5.5, 2.2], [19, 13, 5, 2], [4, 27, 4, 1.8]].forEach(p => pad(...p));
+  // a camp lantern on a string from the branch
+  const L0 = LAMPS[0];
+  for (let y = 18; y <= L0.ly - 3; y++) cv.put(L0.x, y, C.string);
+  cv.rect(L0.x - 2, L0.ly - 2, L0.x + 2, L0.ly - 2, C.lampFrame); cv.rect(L0.x - 2, L0.ly + 2, L0.x + 2, L0.ly + 2, C.lampFrame);
+  cv.rect(L0.x - 1, L0.ly - 1, L0.x + 1, L0.ly + 1, C.lamp); cv.put(L0.x - 2, L0.ly, C.lampFrame); cv.put(L0.x + 2, L0.ly, C.lampFrame);
+  // sky mask so the stars twinkle only where the sky still shows
   const base = new Canvas().copy(cv);
   for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
-    const ref = lerp(C.sky0, C.sky3, 0); void ref;
-    sky[y * SW + x] = y < ridge(x) - 0.5 && !(x >= 9 && x <= 86 && y >= 4 && y <= 17) && !((x >= 17 && x <= 22) || (x >= 73 && x <= 78)) && Math.hypot(x - MOON.x, y - MOON.y) > MOON.r + 2 ? 1 : 0;
+    const i = (y * SW + x) * 3, same = Math.abs(base.d[i] - skyOnly.d[i]) + Math.abs(base.d[i + 2] - skyOnly.d[i + 2]) < 1;
+    sky[y * SW + x] = y < ridge(x) - 0.5 && same && Math.hypot(x - MOON.x, y - MOON.y) > MOON.r + 2 ? 1 : 0;
   }
   const stars = [];
   for (let n = 0; n < 90; n++) {
@@ -169,14 +217,23 @@ function motes(list, tx, ty, n, R) {
     list.push({ k: 'mote', x: tx + Math.cos(a) * d, y: ty + Math.sin(a) * d * 0.7, tx, ty, age: 0, life: 18 + R() * 16, sp: 0.06 + R() * 0.06 });
   }
 }
+function steam(list, x, y, R) {
+  list.push({ k: 'steam', x: x + R() * 3, y, p: R() * 6.28, age: 0, life: 22 + R() * 12 });
+}
 function step(list) {
   for (const p of list) {
     p.age++;
     if (p.k === 'smoke') { p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy = p.vy * 0.94 - 0.012; p.r += 0.12; }
     else if (p.k === 'feather') { p.y += p.vy; p.x += Math.sin(p.age * 0.12 + p.p) * 0.35; if (p.y > 44) p.age = p.life; }
+    else if (p.k === 'steam') { p.y -= 0.22; p.x += Math.sin(p.age * 0.3 + p.p) * 0.25; }
+    else if (p.k === 'spark') { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.vx *= 0.97; }
     else if (p.k === 'mote') { p.x += (p.tx - p.x) * p.sp; p.y += (p.ty - p.y) * p.sp; if (Math.hypot(p.tx - p.x, p.ty - p.y) < 1) p.age = p.life; }
   }
   for (let i = list.length - 1; i >= 0; i--) if (list[i].age >= list[i].life) list.splice(i, 1);
+}
+// A burst of light-colored sparks, for the hatch.
+function sparks(list, x, y, n, R, c = [255, 240, 190]) {
+  for (let i = 0; i < n; i++) { const a = R() * Math.PI * 2, v = 0.6 + R() * 1.6; list.push({ k: 'spark', x, y, vx: Math.cos(a) * v * 1.3, vy: Math.sin(a) * v - 0.8, c, age: 0, life: 14 + R() * 14 }); }
 }
 function drawParticles(cv, list, layer) {
   for (const p of list) {
@@ -186,9 +243,15 @@ function drawParticles(cv, list, layer) {
       const tilt = Math.sin(p.age * 0.12 + p.p) > 0 ? 1 : -1;
       cv.put(p.x, p.y, C.featherL, 0.9); cv.put(p.x + tilt, p.y + 1, C.feather, 0.95); cv.put(p.x + tilt * 2, p.y + 1, C.feather, 0.8);
     }
+    if (p.k === 'steam' && layer === 'front') cv.put(p.x, p.y, [225, 220, 240], 0.45 * f);
+    if (p.k === 'spark' && layer === 'front') cv.add(p.x, p.y, p.c, f);
     if (p.k === 'mote' && layer === 'front') { cv.add(p.x, p.y, [255, 240, 190], 0.9); cv.disc(p.x, p.y, 0.6, [255, 220, 150], 0.25, { soft: 1.5, glow: true }); }
   }
 }
+
+// Where the bell on Sojo's staff hangs, for glows and motes. Raised poses lift it 4px.
+const RAISED = new Set(['raise', 'glow', 'nomug']);
+const bellAt = S => ({ x: S.sx + 9.5, y: S.sy + (RAISED.has(S.pose) ? 7 : 11) });
 
 // ---- Frame composition ----------------------------------------------------------------------------
 // Everything the director can change lives in `S`; compose() turns it into pixels.
@@ -231,34 +294,70 @@ function compose(cv, scene, S, t) {
     }
   }
 
-  // Sōjōbō
+  // Sojo
   if (S.sensei && S.senseiAlpha > 0) {
     const rows = S.sensei.FRAMES[S.pose] || S.sensei.FRAMES.idle;
     cv.sprite(rows, S.sensei.PAL, S.sx, S.sy, { alpha: S.senseiAlpha, dissolve: S.dissolve || 0, seed: t, light: S.senseiLight || 0 });
     if (S.ringGlow > 0) {
-      const rx = S.sx + 4.5, ry = S.sy + 2.8; // ring of the raised shakujō
-      cv.disc(rx, ry, 2, [255, 248, 210], 0.5 * S.ringGlow, { soft: 10 * S.ringGlow, glow: true });
+      const b = bellAt(S); // the brass bell on his staff
+      cv.disc(b.x, b.y, 2, [255, 248, 210], 0.5 * S.ringGlow, { soft: 10 * S.ringGlow, glow: true });
+    }
+  }
+
+  // the duck on its rock, and the mug he left behind; both stay a little lit when the stage dims
+  const shade = { tint: [10, 8, 20], tintAmt: 0.35 * (S.dim || 0) };
+  const dk = S.duck || {};
+  cv.sprite(DUCK, DUCK_PAL, ROCK.x - 6, ROCK.y - 13 + Math.round(dk.dy || 0), shade);
+  if (dk.worry) { const wy = ROCK.y - 13 + Math.round(dk.dy || 0); cv.put(ROCK.x + 3, wy + 1, hex(DUCK_PAL.s), Math.min(1, dk.worry)); cv.put(ROCK.x + 3, wy + 2, hex(DUCK_PAL.s), Math.min(1, dk.worry) * 0.7); }
+  if (S.mug) cv.sprite(MUG, MUG_PAL, Math.round(S.mug.x), Math.round(S.mug.y), shade);
+
+  // light rays behind a silhouette
+  if (S.rays > 0) {
+    const cx = 48, cy = 26, col = S.auraRGB || [255, 230, 160];
+    for (let a = 0; a < 12; a++) {
+      const th = (a / 12) * Math.PI * 2 + t * 0.045, wide = a % 2 ? 0.6 : 1;
+      for (let r = 12; r < 46; r += 0.6) {
+        const x = cx + Math.cos(th) * r * 1.3, y = cy + Math.sin(th) * r * 0.75;
+        cv.add(x, y, col, S.rays * 0.42 * wide * (1 - r / 46));
+      }
     }
   }
 
   // the egg, with its aura
   if (S.egg) {
-    const E = S.egg, sc = E.scale || 1, w = 12 * sc, h = 14 * sc, cx = E.x + w / 2, cy = E.y + h / 2;
+    const E = S.egg, sc = E.scale || 1, w = 12 * sc, h = 14 * sc, cx = E.x + w / 2, cy = E.y + h / 2, ex = Math.round(E.x + (E.wx || 0)), ey = Math.round(E.y + (E.wy || 0));
     const pulse = 0.75 + 0.25 * Math.sin(t * 0.35);
     cv.disc(cx, cy, w * 0.45, E.aura, 0.32 * pulse * (E.glow ?? 1), { soft: 9 * sc, glow: true });
     cv.disc(cx, cy, w * 0.2, [255, 250, 230], 0.18 * pulse * (E.glow ?? 1), { soft: 6 * sc, glow: true });
     if (E.shadow) cv.disc(cx, E.groundY ?? 46, w * 0.42, [0, 0, 0], 0.35, { soft: 2 });
-    cv.sprite(E.rows, E.pal, Math.round(E.x), Math.round(E.y), { scale: sc, alpha: E.alpha ?? 1, light: E.light || 0 });
+    cv.sprite(E.rows, E.pal, ex, ey, { scale: sc, alpha: E.alpha ?? 1, light: E.light || 0 });
+    // light leaking through the crack
+    if (E.leak > 0) {
+      const ly = ey + 4 * sc;
+      cv.disc(ex + w / 2, ly, 1.5 * sc, [255, 250, 230], 0.5 * E.leak, { soft: 7 * sc * E.leak, glow: true });
+      cv.disc(ex + w / 2, ly, 3 * sc, E.aura, 0.3 * E.leak, { soft: 10 * sc * E.leak, glow: true });
+      for (let a = 0; a < 5; a++) {
+        const th = -Math.PI / 2 + (a - 2) * 0.42 + Math.sin(t * 0.2 + a) * 0.05;
+        for (let r = 3; r < 6 + 14 * E.leak; r += 0.7) cv.add(ex + w / 2 + Math.cos(th) * r * 1.2, ly + Math.sin(th) * r, E.aura, 0.5 * E.leak * (1 - r / (6 + 14 * E.leak)));
+      }
+    }
   }
 
   // the Patchling
   if (S.creature) {
-    const K = S.creature;
-    cv.sprite(K.g, K.pal, K.x, K.y, { scale: K.scale || 2, light: K.light || 0 });
+    const K = S.creature, sc = K.scale || 2;
+    if (K.sil > 0) {
+      // Who's that Patchling: a dark shape with a rim of the path's light
+      const rim = S.auraRGB || [255, 230, 160];
+      for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) cv.sprite(K.g, K.pal, K.x + dx, K.y + dy, { scale: sc, tint: rim, tintAmt: 1, alpha: K.sil * 0.9, light: 0.3 });
+      cv.sprite(K.g, K.pal, K.x, K.y, { scale: sc, light: K.light || 0 });
+      cv.sprite(K.g, K.pal, K.x, K.y, { scale: sc, tint: [14, 11, 26], tintAmt: 1, alpha: K.sil });
+    } else cv.sprite(K.g, K.pal, K.x, K.y, { scale: sc, light: K.light || 0 });
   }
 
   drawParticles(cv, S.particles, 'front');
 
+  if (S.shake > 0.3) cv.shift(Math.round((Math.sin(t * 2.7) * S.shake)), Math.round(Math.cos(t * 3.3) * S.shake * 0.5));
   if (S.flash > 0) for (let i = 0; i < cv.d.length; i++) cv.d[i] += (255 - cv.d[i]) * S.flash;
   if (S.fade < 1) cv.scale(clamp(S.fade));
 }
@@ -283,4 +382,4 @@ function toRows(cv) {
   return out;
 }
 
-module.exports = { SW, SH, Canvas, scenery, compose, toRows, puff, feathers, motes, step, rng, hex, lerp, clamp, C };
+module.exports = { SW, SH, Canvas, scenery, compose, toRows, puff, feathers, motes, steam, sparks, step, rng, hex, lerp, clamp, bellAt, C, DUCK, DUCK_PAL, MUG, MUG_PAL, ROCK };

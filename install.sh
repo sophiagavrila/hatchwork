@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install hatchwork and meet Sōjōbō, who hands you your first Patchling egg.
+# Install hatchwork and meet Sojo, who hands you your first Patchling egg.
 #
 #   ./install.sh                 from a clone
 #   HATCHWORK_REF=<branch> ...   install a branch instead of the default
