@@ -4,8 +4,9 @@
     python3 scripts/media.py
 
 Writes docs/media/<id>.gif (egg + entrance + a few idle beats), docs/media/<id>.png (idle),
-docs/media/lineup.png, docs/media/hero.gif, and regenerates the dex table in README.md
-between the <!-- dex:start --> and <!-- dex:end --> markers.
+docs/media/<id>-2.png / <id>-3.png (later forms), docs/media/<id>-evolve.gif (every evolution),
+docs/media/lineup.png, docs/media/evolutions.png, docs/media/hero.gif, and regenerates the dex
+table in README.md between the <!-- dex:start --> and <!-- dex:end --> markers.
 """
 
 from __future__ import annotations
@@ -29,14 +30,22 @@ def rgb(hex_: str) -> tuple[int, int, int]:
 
 
 def paletted(
-    grids: list[list[str]], pal: dict[str, str], w: int, h: int, z: int, bg: str | None
+    grids: list[list[str]],
+    pal: dict[str, str] | list[dict[str, str]],
+    w: int,
+    h: int,
+    z: int,
+    bg: str | None,
 ):
-    """Build exact-color P-mode frames (no dithering, one shared palette)."""
-    colors = [rgb(bg or "#000000")] + sorted({rgb(v) for v in pal.values()})
+    """Build exact-color P-mode frames (no dithering, one shared palette).
+
+    `pal` is one palette for every frame, or a list with one palette per frame."""
+    pals = pal if isinstance(pal, list) else [pal] * len(grids)
+    colors = [rgb(bg or "#000000")] + sorted({rgb(v) for p in pals for v in p.values()})
     index = {c: i for i, c in enumerate(colors)}
     flat = [v for c in colors for v in c] + [0] * (768 - 3 * len(colors))
     out = []
-    for g in grids:
+    for g, pal in zip(grids, pals):
         im = Image.new("P", (w * z, h * z), 0)
         im.putpalette(flat)
         px = im.load()
@@ -83,6 +92,18 @@ def coda(c, W, H):
     return [(s[n], ms) for n, ms in seq]
 
 
+def evo_line(c) -> str:
+    """Thumbnails and names for the creature's evolution line, if it has one."""
+    if len(c["forms"]) < 2:
+        return ""
+    imgs = " → ".join(
+        f'<img src="docs/media/{c["id"]}{"" if f["stage"] == 1 else "-" + str(f["stage"])}.png" '
+        f'height="40" alt="{f["name"]}"> {f["name"]}'
+        for f in c["forms"]
+    )
+    return f"<br><br><sub><b>Evolves:</b></sub><br>{imgs}"
+
+
 def main() -> None:
     data = json.loads(
         subprocess.check_output(["node", str(ROOT / "scripts" / "dump.js")])
@@ -104,6 +125,20 @@ def main() -> None:
             save_gif(
                 MEDIA / "hero.gif", paletted(grids, c["palette"], W, H, 12, BG), ms
             )
+        for f in c["forms"][1:]:
+            idle = f["sprites"]["idle"]
+            paletted([idle], f["palette"], len(idle[0]), len(idle), 8, None)[0].save(
+                MEDIA / f"{c['id']}-{f['stage']}.png"
+            )
+        if c["evolutions"]:
+            ev = [x for e in c["evolutions"] for x in e]
+            save_gif(
+                MEDIA / f"{c['id']}-evolve.gif",
+                paletted(
+                    [x["g"] for x in ev], [x["pal"] for x in ev], W, H, 8, BG
+                ),
+                [max(20, x["ms"]) for x in ev],
+            )
 
     # Lineup: every idle sprite, bottom-aligned in equal cells.
     cw, ch, z, per = 24, 22, 5, 10
@@ -119,15 +154,33 @@ def main() -> None:
         sheet.paste(tile, (x, y), tile)
     sheet.save(MEDIA / "lineup.png")
 
+    # Evolution chart: each creature's line, three creatures per row.
+    cw, ch, z, per = 30, 24, 4, 3
+    evolved = [c for c in cs if len(c["forms"]) > 1]
+    if evolved:
+        rows = (len(evolved) + per - 1) // per
+        gap = 2 * cw * z // 3
+        width = per * 3 * cw * z + (per - 1) * gap + 4 * z
+        chart = Image.new("RGB", (width, rows * ch * z + 4 * z), rgb(BG))
+        for i, c in enumerate(evolved):
+            for j, f in enumerate(c["forms"]):
+                idle = f["sprites"]["idle"]
+                tile = paletted([idle], f["palette"], cw, ch, z, None)[0].convert("RGBA")
+                x = 2 * z + (i % per) * (3 * cw * z + gap) + j * cw * z
+                y = 2 * z + (i // per) * ch * z
+                chart.paste(tile, (x, y), tile)
+        chart.save(MEDIA / "evolutions.png")
+
     # Dex table in README.
     cells = []
     for i, c in enumerate(cs, 1):
         cells.append(
             f'<tr><td><img src="docs/media/{c["id"]}.gif" width="224" alt="{c["name"]} hatching"></td>'
             f"<td><b>#{i:03d} {c['name']}</b><br><sub>{c['species']}</sub><br>"
-            f"{STARS[c['rarity']]} {c['rarity']} · {c['odds'] * 100:.1f}%</td>"
+            f"{STARS[c['rarity']]} {c['rarity']} · {c['odds'] * 100:.1f}%<br>"
+            f"<sub>specialty: {c['habit']}</sub></td>"
             f"<td><b>Coaches:</b> {c['coaching']}<br><br><i>“{c['voice']}”</i><br><br>"
-            f"<sub><b>Hatch:</b> {c['hatch']}</sub></td></tr>"
+            f"<sub><b>Hatch:</b> {c['hatch']}</sub>{evo_line(c)}</td></tr>"
         )
     table = "<table>\n" + "\n".join(cells) + "\n</table>"
     readme = ROOT / "README.md"

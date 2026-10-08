@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Patch — hatchery</title>
+<title>Patchdex — the hatchery</title>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{--page:#0f0d0c;--term:#14110f;--card:#181412;--line:#2b2521;--line2:#3a322c;--ink:#efe4d6;--fg:#d9cdbf;--muted:#857869;--acc:#f0a35e;
@@ -67,13 +67,23 @@ dd q{color:var(--ink);font-style:italic}
 #lineup .lu:hover{border-color:var(--acc)}
 #lineup canvas{image-rendering:pixelated}
 #lineup small{color:var(--muted);font-size:10.5px}
+.evo{display:flex;align-items:flex-end;gap:6px;padding:4px 18px 0}
+.evo .fm{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--term);cursor:pointer;min-width:84px}
+.evo .fm.on{border-color:var(--acc)}
+.evo .fm small{color:var(--muted);font-size:10px;letter-spacing:.06em}
+.evo .fm b{font-weight:400;color:var(--ink);font-size:11.5px}
+.evo .ar{color:#5d534b;padding-bottom:22px}
+.evo .gate{color:var(--muted);font-size:10.5px;padding:0 0 22px 4px;max-width:150px;line-height:1.4}
+.evo canvas{image-rendering:pixelated}
+#forms{display:flex;gap:6px;align-items:center;color:var(--muted);margin-bottom:6px}
 </style>
 </head>
 <body>
 <header>
-  <h1>Patch <i>— the hatchery</i></h1>
-  <p>Every install hatches one of these at random. Each has its own way out of the egg, its own moods, and its own coaching voice. ★ the ones worth keeping.</p>
+  <h1>Patchdex <i>— the hatchery</i></h1>
+  <p>Every install hatches one Patchling at random. Each has its own way out of the egg, its own moods, its own coaching voice, and three forms: it evolves as you get better at working with agents. ★ the ones worth keeping.</p>
   <button class="btn main" id="hatch">hatch an egg</button>
+  <span id="forms">lineup <button class="btn on" data-s="0">I</button><button class="btn" data-s="1">II</button><button class="btn" data-s="2">III</button></span>
   <span id="picks"></span>
 </header>
 <div id="lineup"></div>
@@ -99,7 +109,8 @@ function load(ids, done) {
     if (i >= ids.length) return done();
     const s = document.createElement('script'), id = ids[i++];
     s.src = `creatures/${id}.js?v=${Date.now()}`;
-    s.onload = next; s.onerror = () => { missing.push(id); next(); };
+    s.onload = () => { const e = document.createElement('script'); e.src = `evolutions/${id}.js?v=${Date.now()}`; e.onload = e.onerror = next; document.body.appendChild(e); };
+    s.onerror = () => { missing.push(id); next(); };
     document.body.appendChild(s);
   };
   next();
@@ -122,40 +133,78 @@ function build() {
     el.innerHTML = `
       <div class="hd"><span class="n">#${String(n).padStart(3, '0')}</span><h2>${esc(c.name)}</h2><span class="sp">${esc(c.species)}</span>
         <span class="rar ${c.rarity}">${STARS[c.rarity]} ${c.rarity} · ${(D.odds(c) * 100).toFixed(1)}%</span></div>
-      <div class="body"><div class="stage"><span class="lbl">8× zoom</span><canvas class="big"></canvas></div>
-        <dl><dt>nature</dt><dd>${esc(c.blurb)}</dd><dt>coaching</dt><dd>${esc(c.coaching)}</dd>
-          <dt>voice</dt><dd><q>${esc(c.voice)}</q></dd><dt>hatch</dt><dd>${esc(c.hatch)}</dd></dl></div>
+      <div class="evo"></div>
+      <div class="body"><div class="stage"><span class="lbl">8× zoom</span><canvas class="big"></canvas></div><dl class="bio"></dl></div>
       <div class="ctl">${MOODS.map(m => `<button class="btn md" data-m="${m}">${m}</button>`).join('')}
-        <span class="sep"></span><button class="btn ent">▶ entrance</button><button class="btn pk">★ pick</button></div>
+        <span class="sep"></span><button class="btn ent">▶ hatch</button><button class="btn evb">▶ evolve</button><button class="btn pk">★ pick</button></div>
       <div class="pane"><div class="tb"><i></i><i></i><i></i><span>&nbsp;actual size in a pane</span></div>
         <div class="in"><pre class="tx"></pre><canvas class="sm"></canvas></div>
         <div class="ft"><span><span class="f">~/code/todo-api</span> main</span><span>copilot · ctx 32%</span></div></div>
       ${c._errors.length ? `<div class="err">${esc(c._errors.join('\n'))}</div>` : ''}`;
     grid.appendChild(el);
-    const st = { c, pal, fr, el, mood: 'idle', play: null, big: el.querySelector('.big'), sm: el.querySelector('.sm') };
+    const st = { c, pal, fr, el, mood: 'idle', play: null, stage: 0, big: el.querySelector('.big'), sm: el.querySelector('.sm') };
     el.querySelectorAll('.md').forEach(b => b.onclick = () => { st.mood = b.dataset.m; st.play = null; paintMood(st); });
-    el.querySelector('.ent').onclick = () => { st.play = performance.now(); };
+    el.querySelector('.ent').onclick = () => { setStage(st, 0); st.fr = fr; st.play = performance.now(); };
+    el.querySelector('.evb').onclick = () => {
+      const last = D.formsOf(c).length - 1; if (!last) return;
+      const from = st.stage >= last ? 0 : st.stage;
+      setStage(st, from); st.fr = D.evolution(c, from); st.play = performance.now(); st.after = from + 1;
+    };
+    buildEvo(st);
     el.querySelector('.pk').onclick = () => { picks.has(c.id) ? picks.delete(c.id) : picks.add(c.id); savePicks(); };
     el.querySelector('.tx').innerHTML = [
       '<span class="a">❯</span> <span class="f">add a try/except around the fetch</span>',
       '<span class="g">✓</span> <span class="f">Edit</span> <span class="d">scheduler.py (+4 -1)</span>',
       '<span class="f">●</span> Wrapped the fetch. Not run yet.', '',
-      `<span class="a">${esc(c.name.toLowerCase())}</span> <span class="d">·</span> <span class="f">${esc(c.voice)}</span>`, '',
+      `<span class="a vn">${esc(c.name.toLowerCase())}</span> <span class="d">·</span> <span class="f vv">${esc(c.voice)}</span>`, '',
       '<span class="d">╭──────────────────────────────────╮</span>',
       '<span class="d">│</span> <span class="a">❯</span>                                <span class="d">│</span>',
       '<span class="d">╰──────────────────────────────────╯</span>'].join('\n');
-    paintMood(st);
+    paintMood(st); setStage(st, 0);
     cards.push(st);
     if (SHEET) buildSheet(st);
   });
   if (!ONLY) list.forEach(c => { const d = document.createElement('div'); d.className = 'lu';
     const cv = document.createElement('canvas'); d.appendChild(cv); const l = document.createElement('small'); l.textContent = c.name; d.appendChild(l);
-    d.onclick = () => cards.find(x => x.c === c).el.scrollIntoView({ behavior: 'smooth' });
-    document.getElementById('lineup').appendChild(d); LU.push({ c, cv, pal: D.paletteOf(c) }); });
+    d.onclick = () => { const st = cards.find(x => x.c === c); setStage(st, Math.min(LS, D.formsOf(c).length - 1)); st.el.scrollIntoView({ behavior: 'smooth' }); };
+    document.getElementById('lineup').appendChild(d); LU.push({ c, cv, l }); });
+  document.querySelectorAll('#forms .btn').forEach(b => b.onclick = () => { LS = +b.dataset.s; document.querySelectorAll('#forms .btn').forEach(x => x.classList.toggle('on', x === b)); });
   paintPicks();
   if (missing.length && !ONLY) document.getElementById('missing').textContent = 'not drawn yet: ' + missing.join(', ');
 }
 
+let LS = 0;
+const ROMAN = ['I', 'II', 'III'];
+// Mirrors GATES in growth.js.
+const GATES = ['', h => h === 'craft' ? '300 XP · craft 55' : `300 XP · craft 55 · ${h} 50`,
+  h => h === 'craft' ? '1200 XP · craft 75 · no habit under 40' : `1200 XP · craft 72 · ${h} 75 · no habit under 40`];
+function setStage(st, n) {
+  const c = st.c, fm = D.form(c, n); st.stage = n; st.pal = D.paletteOf(fm); st.play = null;
+  const habit = D.HABITS[c.habit] || 'every habit';
+  st.el.querySelector('h2').textContent = fm.name;
+  st.el.querySelector('.sp').textContent = `${fm.species || ''} · ${D.STAGES[n].toLowerCase()}`;
+  st.el.querySelector('.bio').innerHTML = `<dt>nature</dt><dd>${esc(fm.blurb)}</dd>
+    <dt>coaching</dt><dd>${esc(c.coaching)}${n ? '' : ''}</dd><dt>specialty</dt><dd>${esc(habit)}</dd>
+    <dt>voice</dt><dd><q>${esc(fm.voice)}</q></dd>
+    ${n ? `<dt>evolved</dt><dd>${esc(fm.evolve)}</dd>` : `<dt>hatch</dt><dd>${esc(c.hatch)}</dd>`}`;
+  st.el.querySelector('.vn').textContent = fm.name.toLowerCase(); st.el.querySelector('.vv').textContent = fm.voice;
+  st.el.querySelectorAll('.evo .fm').forEach((x, i) => x.classList.toggle('on', i === n));
+  st.el.querySelector('.evb').disabled = D.formsOf(c).length < 2;
+  st.el.querySelector('.evb').textContent = n >= D.formsOf(c).length - 1 ? '▶ evolve (from I)' : `▶ evolve → ${ROMAN[n + 1]}`;
+}
+function buildEvo(st) {
+  const c = st.c, box = st.el.querySelector('.evo'), forms = D.formsOf(c);
+  st.evo = [];
+  forms.forEach((fm, i) => {
+    if (i) box.insertAdjacentHTML('beforeend', `<span class="gate">${esc(GATES[i](c.habit && c.habit !== 'craft' ? c.habit : 'craft'))}</span><span class="ar">→</span>`);
+    const d = document.createElement('div'); d.className = 'fm';
+    const cv = document.createElement('canvas'); d.appendChild(cv);
+    d.insertAdjacentHTML('beforeend', `<b>${esc(fm.name)}</b><small>${ROMAN[i]} · ${D.STAGES[i].toLowerCase()}</small>`);
+    d.onclick = () => setStage(st, i);
+    box.appendChild(d); st.evo.push({ cv, fm, pal: D.paletteOf(fm) });
+  });
+  if (forms.length < 3) box.insertAdjacentHTML('beforeend', '<span class="gate">evolutions not drawn yet</span>');
+}
 function paintMood(st) { st.el.querySelectorAll('.md').forEach(b => b.classList.toggle('on', b.dataset.m === st.mood)); }
 function savePicks() { localStorage.setItem('patch.hatchery.picks', JSON.stringify([...picks])); paintPicks(); }
 function paintPicks() {
@@ -169,11 +218,15 @@ const total = fr => fr.reduce((a, b) => a + b.ms, 0);
 function gridFor(st, t, now) {
   if (st.play != null) {
     const el = now - st.play, fr = frameAt(st.fr, el);
+    st.curPal = fr && fr.pal;
     if (fr) return fr.g;
-    if (el < total(st.fr) + 1600) return D.homeOf && kitAt(st.c, D.spriteFor(st.c, 'happy', t));
+    if (st.after != null) { const n = st.after; st.after = null; setStage(st, n); return gridFor(st, t, now); }
+    const fm = D.form(st.c, st.stage);
+    if (el < total(st.fr) + 1600) return kitAt(fm, D.spriteFor(fm, 'happy', t));
     st.play = null;
   }
-  return kitAt(st.c, D.spriteFor(st.c, st.mood, t));
+  const fm = D.form(st.c, st.stage); st.curPal = null;
+  return kitAt(fm, D.spriteFor(fm, st.mood, t));
 }
 function kitAt(c, name) { return D.kit(c).at(name); }
 
@@ -181,8 +234,9 @@ let T = 0;
 function tick() {
   T++;
   const now = performance.now();
-  cards.forEach(st => { const g = gridFor(st, T, now); D.draw(st.big, g, st.pal, 8); D.draw(st.sm, g, st.pal, Math.round(CW)); });
-  LU.forEach(x => D.draw(x.cv, x.c.sprites[D.spriteFor(x.c, 'idle', T + x.c.id.length * 7)], x.pal, 5));
+  cards.forEach(st => { const g = gridFor(st, T, now); D.draw(st.big, g, st.curPal || st.pal, 8); D.draw(st.sm, g, st.curPal || st.pal, Math.round(CW)); });
+  LU.forEach(x => { const fm = D.form(x.c, LS); x.l.textContent = fm.name; D.draw(x.cv, fm.sprites[D.spriteFor(fm, 'idle', T + x.c.id.length * 7)], D.paletteOf(fm), 4); });
+  cards.forEach(st => (st.evo || []).forEach((e, i) => D.draw(e.cv, e.fm.sprites[D.spriteFor(e.fm, 'idle', T + i * 9)], e.pal, 3)));
   if (M.c) {
     const el = now - M.start, fr = frameAt(M.fr, el);
     D.draw(M.cv, fr ? fr.g : kitAt(M.c, D.spriteFor(M.c, el < total(M.fr) + 1600 ? 'happy' : 'idle', T)), M.pal, 14);
@@ -210,10 +264,20 @@ document.getElementById('close').onclick = () => { M.c = null; document.getEleme
 function buildSheet(st) {
   const { c, pal, fr } = st, s = document.createElement('div'); s.className = 'sheet';
   const cell = (g, z, label) => { const d = document.createElement('div'); d.className = 'cell'; const cv = document.createElement('canvas'); D.draw(cv, g, pal, z); d.appendChild(cv); const l = document.createElement('small'); l.textContent = label; d.appendChild(l); return d; };
-  s.innerHTML = '<h3>sprites · 12×</h3><div class="row r1"></div><h3>entrance · every frame · 5×</h3><div class="row r2"></div><h3>actual terminal size (half-blocks, 1 px = ½ cell)</h3><div class="row r3"></div>';
-  Object.entries(c.sprites).forEach(([n, rows]) => s.querySelector('.r1').appendChild(cell(rows, 12, `${n} · ${[...rows[0]].length}×${rows.length}`)));
+  const forms = D.formsOf(c);
+  s.innerHTML = '<h3>evolution line · idle · 10×</h3><div class="row r0"></div>'
+    + forms.map((fm, i) => `<h3>${ROMAN[i]} · ${esc(fm.name)} · sprites · 12×</h3><div class="row rs${i}"></div>`).join('')
+    + '<h3>entrance · every frame · 5×</h3><div class="row r2"></div>'
+    + (forms.length > 1 ? '<h3>evolution I → II · every frame · 4×</h3><div class="row re"></div>' : '')
+    + '<h3>actual terminal size (half-blocks, 1 px = ½ cell)</h3><div class="row r3"></div>';
+  forms.forEach((fm, i) => {
+    const fp = D.paletteOf(fm), cellP = (g, z, label) => { const d = cell(g, z, label); D.draw(d.querySelector('canvas'), g, fp, z); return d; };
+    s.querySelector('.r0').appendChild(cellP(fm.sprites.idle, 10, `${ROMAN[i]} ${fm.name} · ${[...fm.sprites.idle[0]].length}×${fm.sprites.idle.length}`));
+    Object.entries(fm.sprites).forEach(([n, rows]) => s.querySelector('.rs' + i).appendChild(cellP(rows, 12, `${n} · ${[...rows[0]].length}×${rows.length}`)));
+    ['idle', 'happy', 'sleep'].forEach(n => s.querySelector('.r3').appendChild(cellP(fm.sprites[n], Math.round(CW), `${ROMAN[i]} ${n}`)));
+  });
   fr.forEach((x, i) => s.querySelector('.r2').appendChild(cell(x.g, 5, `#${i} · ${x.ms}ms${x.note ? ' · ' + x.note : ''}`)));
-  ['idle', 'happy', 'sleep'].forEach(n => s.querySelector('.r3').appendChild(cell(c.sprites[n], Math.round(CW), n)));
+  if (forms.length > 1) { const ep = D.paletteOf(forms[1]); D.evolution(c, 0).forEach((x, i) => { const d = cell(x.g, 4, `#${i} · ${x.ms}ms${x.note ? ' · ' + x.note : ''}`); D.draw(d.querySelector('canvas'), x.g, x.pal || ep, 4); s.querySelector('.re').appendChild(d); }); }
   st.el.appendChild(s);
 }
 

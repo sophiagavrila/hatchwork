@@ -1,10 +1,15 @@
 {
   "name": "hatchwork",
   "version": "0.1.0",
-  "description": "Patch: a pixel companion for GitHub Copilot CLI that coaches agentic engineering habits. Every install hatches a different creature.",
-  "bin": { "hatchwork": "cli.js" },
+  "description": "Patchlings: pixel companions for GitHub Copilot CLI that coach agentic engineering habits and evolve as you improve. Every install hatches a different one.",
+  "bin": {
+    "hatchwork": "cli.js",
+    "patchling": "patch.js"
+  },
   "scripts": {
     "check": "node cli.js --check",
+    "test": "node --test test/*.test.js",
+    "patch": "node patch.js",
     "media": "python3 scripts/media.py"
   },
   "license": "UNLICENSED",
