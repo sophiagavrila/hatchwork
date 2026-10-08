@@ -122,7 +122,7 @@
       const eggWith = () => k.stamp(k.egg(k.EGG), PLATE, EX + 3, EY + 4);
       // 1. The keyhole appears; the key slides in from the right and turns.
       F(eggWith(), 300, 'a keyhole');
-      [[22, 140], [18, 120], [14, 260]].forEach(([x, ms]) => { const g = eggWith(); k.stamp(g, KEY, x, EY + 5); k.stamp(g, PLATE, EX + 3, EY + 4); F(g, ms); });
+      [[18, 140], [16, 120], [14, 260]].forEach(([x, ms]) => { const g = eggWith(); k.stamp(g, KEY, x, EY + 5); k.stamp(g, PLATE, EX + 3, EY + 4); F(g, ms); });
       { const g = eggWith(); k.stamp(g, KEY_TURNED, 14, EY + 4); [[20, EY + 3], [21, EY + 1], [10, EY + 2]].forEach(([x, y]) => k.px(g, x, y, 'y')); F(g, 260, 'click'); }
       // 2. The front of the egg swings open on a left hinge (foreshortened), revealing a dark vault.
       const swing = (w, back, glint) => {
@@ -144,9 +144,9 @@
       { const g = swing(4, true, GLINT); k.stamp(g, ['we..we', 'ee..ee'], EX + 3, EY + 6); F(g, 320); }
       const SLAB = (g, tip = 0) => { for (let y = 0; y < 12 - tip; y++) for (let x = 0; x < 4; x++) k.px(g, 3 + x + (tip ? Math.floor(y / 3) - 1 : 0), 9 + tip + y, x === 0 || y === 0 || y === 11 - tip ? '0' : '3'); return g; };
       { const g = swing(4, true, GLINT); k.stamp(g, put(HEAD, ...EYES.open, ...MOUTH.idle, ...BLUSH), EX + 1, EY + 6); F(g, 260); }
-      F(k.over(SLAB(k.blank()), vault({ liftF: 1 }), 5, 0), 140);
-      F(k.over(SLAB(k.blank()), vault({ liftB: 1 }), 3, 0), 140);
-      F(k.over(SLAB(k.blank(), 3), vault({ liftF: 1 }), 1, 0), 140);
+      F(k.over(SLAB(k.blank()), vault({ liftF: 1 }), 2, 0), 140);
+      F(k.over(SLAB(k.blank()), vault({ liftB: 1 }), 1, 0), 140);
+      F(k.over(SLAB(k.blank(), 3), vault({ liftF: 1 }), 0, 0), 140);
       { const g = k.at(vault({ dy: 1 })); [[1, 21, '3'], [2, 21, '0'], [4, 20, '3'], [0, 20, '0']].forEach(([x, y, c]) => k.px(g, x, y, c)); F(g, 110); }
       // 4. The dial on its back spins... and locks.
       ['d', 'h', 'd2'].forEach(d => F(k.at(vault({ eyes: 'right', dial: d })), 80));
