@@ -17,6 +17,52 @@ Every install hatches a different one, and yours **evolves** as you get measurab
 
 ---
 
+## Install with Copilot CLI
+
+In Copilot CLI, say:
+
+```
+install and set up https://github.com/sophiagavrila/hatchwork
+```
+
+The agent clones the repo and runs [`install.sh`](install.sh) (instructions for it are in [`AGENTS.md`](AGENTS.md)). That opens the **sensei ceremony** in a tmux popup or a new terminal window. By hand: `gh repo clone sophiagavrila/hatchwork && ./hatchwork/install.sh`.
+
+### The ceremony
+
+<p align="center">
+  <img src="docs/media/sensei.png" width="672" alt="Sōjōbō, the tengu king of Mount Kurama, under a torii at night">
+</p>
+
+At night on Mount Kurama, smoke gathers under the torii and **Sōjōbō** steps out of it with his shakujō. He is the tengu king who taught the boy Yoshitsune the sword; these days his students bring agents. He asks one question:
+
+> *So tell me what ails your work with agents. Where do you stall? What keeps going wrong?*
+
+Type whatever comes to mind, as much as you want. Sōjōbō quotes your words back to you, names what he hears, and gives you a proverb and a **path** (one of the eight habits, or the Way of the Craft if you're losing your own skills). He raises his staff, the rings gather light into an egg the color of that path, and he puts it in your hands. Then he's gone. The egg rocks, cracks, and the **Patchling matched to what ails you** climbs out with its first lesson.
+
+| You say something like | Path | You might hatch |
+|---|---|---|
+| "it says done but never runs the tests" | the Way of the Stone Bridge (verification) | Rivet, Dotty |
+| "long sessions it forgets my instructions" | the Way of the Empty Cup (context) | Skein, Thimble, Loam |
+| "we go in circles on the same error" | the Way of the Eighth Rising (recovery) | Ouro, Don |
+| "I merge without reading the diff" | review | Lumen |
+| "I run five agents and they step on each other" | autonomy | Byte, Tosk |
+| "I feel like I'm losing my own skills" | the Way of the Craft | Kuro, Sōjōbō's own student |
+
+The reading is deterministic (same words, same egg) and runs locally: no model calls, nothing leaves your machine. The answer is stored with your Patchling in `~/.hatchwork/state.json`.
+
+```sh
+./install.sh                                   # install + ceremony (agents: opens a window and waits)
+node sensei.js                                 # the ceremony, in a terminal of 96×31 or larger
+node sensei.js --dry-run                       # watch it without saving
+node sensei.js --fast                          # 2.5× speed (or HATCHWORK_SPEED=1.5)
+node sensei.js --plain --ailment "..."         # no animation: the reading and the hatch as text
+node sensei.js --json --ailment-file f.txt     # same, as JSON
+node sensei.js --result                        # what Sōjōbō gave you
+node sensei.js --launch --wait                 # open the ceremony in a tmux popup / new window and wait
+```
+
+---
+
 ## Why Patch exists
 
 Working with a coding agent is a skill. The people who get the most out of it:
@@ -48,7 +94,7 @@ Each creature has moods (`idle`, `blink`, `talk`, `think`, `happy`, `sleep`, `fi
 
 ## The hatch
 
-On first run you get **one creature at random**. Every egg wobbles and cracks the same way, so you can't tell what's inside. Then each creature has **its own way out**.
+On first run you get **one creature**. Installed through the [ceremony](#the-ceremony), Sōjōbō picks it for what ails you, and rarity only breaks ties; `node patch.js hatch` rolls one at random. Every egg wobbles and cracks the same way, so you can't tell what's inside. Then each creature has **its own way out**.
 
 ```mermaid
 flowchart LR
@@ -164,7 +210,7 @@ node cli.js pon --evolve 1       # play the evolution from stage I to II
 node cli.js tsugi --entrance     # play a hatch in your terminal
 node cli.js --all                # everyone, every form
 node cli.js --check              # validate every creature (exit 1 on errors)
-npm test                         # growth scoring tests
+npm test                         # growth scoring and sensei tests
 ```
 
 The Patchdex has a **hatch an egg** button (weighted random, same odds as above), I / II / III tabs on every card and the lineup, ▶ evolve to play an evolution, ★ to keep favorites, and `dex.html?only=<id>&sheet=1` for a review sheet with every form, entrance frame and evolution frame.
@@ -209,6 +255,9 @@ Bar for new creatures: original (inspired by folklore, myth and dev culture; no 
 core.js            renderer, shared egg, entrance kit, evolution scene, validation, rarity roll, ANSI output
 dex.html           the Patchdex
 patch.js           your Patchling: hatch, status, evolve (state in ~/.hatchwork/)
+sensei.js          the install ceremony: Sōjōbō asks what ails you and hands you a matched egg
+sensei/            oracle.js (ailment → path → Patchling), stage.js (Kurama scene), sojobo.js (sprite)
+install.sh         installer used by Copilot CLI (see AGENTS.md)
 growth.js          session scoring, mastery, XP and evolution gates
 cli.js             terminal renderer and validator
 load.js            loads core + roster + creatures + evolutions under Node
