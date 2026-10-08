@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Patch — hatchery</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--page:#0f0d0c;--term:#14110f;--card:#181412;--line:#2b2521;--line2:#3a322c;--ink:#efe4d6;--fg:#d9cdbf;--muted:#857869;--acc:#f0a35e;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;--serif:'Instrument Serif',Georgia,serif;--fs:15px}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--fg);font-family:var(--mono);font-size:12.5px}
+header{display:flex;align-items:flex-end;gap:20px;padding:24px 32px 14px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+h1{font-family:var(--serif);font-weight:400;font-size:46px;line-height:1;margin:0;color:var(--acc)}
+h1 i{color:var(--ink)}
+header p{margin:0 0 6px;color:var(--muted);max-width:70ch;line-height:1.5}
+.btn{font:inherit;font-size:12px;color:var(--fg);background:none;border:1px solid var(--line2);border-radius:6px;padding:5px 11px;cursor:pointer}
+.btn:hover{border-color:var(--acc)}
+.btn.main{background:var(--acc);color:#1b130c;border-color:var(--acc);font-weight:600;padding:8px 16px;font-size:13px}
+.btn.on{background:var(--acc);color:#1b130c;border-color:var(--acc)}
+#picks{color:var(--muted);margin-left:auto;margin-bottom:6px}
+#picks b{color:var(--acc);font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(640px,1fr));gap:22px;padding:24px 32px 80px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card.picked{border-color:var(--acc);box-shadow:0 0 0 1px #f0a35e44}
+.hd{display:flex;align-items:baseline;gap:12px;padding:16px 18px 6px}
+.hd .n{color:var(--muted);font-size:11px}
+.hd h2{font-family:var(--serif);font-weight:400;font-size:34px;line-height:1;margin:0;color:var(--ink)}
+.hd .sp{color:var(--muted);flex:1}
+.rar{font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid}
+.rar.common{color:#b9ad9f;border-color:#4a413a}.rar.uncommon{color:#8fd18a;border-color:#2f5a2c}
+.rar.rare{color:#7cc0ff;border-color:#24496b}.rar.legendary{color:#ffd36b;border-color:#6b5520;background:#2a210d}
+.body{display:grid;grid-template-columns:auto 1fr;gap:18px;padding:10px 18px 4px;align-items:start}
+.stage{background:var(--term);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;align-items:flex-end;justify-content:center;position:relative}
+.stage canvas{image-rendering:pixelated;display:block}
+.stage .lbl{position:absolute;top:6px;left:8px;color:#5d534b;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+dl{display:grid;grid-template-columns:72px 1fr;gap:6px 12px;margin:0;font-size:12px;line-height:1.5}
+dt{color:var(--muted)}dd{margin:0}
+dd q{color:var(--ink);font-style:italic}
+.ctl{display:flex;gap:6px;flex-wrap:wrap;padding:12px 18px 6px;align-items:center}
+.ctl .sep{flex:1}
+.pane{margin:8px 18px 18px;background:var(--term);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.pane .tb{display:flex;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);color:#5d534b;font-size:10.5px}
+.pane .tb i{width:9px;height:9px;border-radius:50%;background:#2b2521;display:inline-block}
+.pane .in{display:flex;align-items:flex-end;gap:2ch;padding:10px 12px}
+.pane pre{margin:0;font-family:var(--mono);font-size:var(--fs);line-height:1.2;white-space:pre;flex:1;min-width:0;overflow:hidden}
+.pane canvas{image-rendering:pixelated;flex:none}
+.pane .ft{display:flex;justify-content:space-between;padding:4px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;white-space:pre}
+.g{color:#8fc47a}.d{color:#6e625a}.a{color:var(--acc)}.f{color:var(--ink)}
+.err{margin:0 18px 12px;padding:8px 10px;border:1px solid #6b2a24;background:#2a1412;color:#ff9c8f;border-radius:6px;white-space:pre-wrap}
+.sheet{padding:6px 18px 18px}
+.sheet h3{font-family:var(--serif);font-weight:400;font-size:22px;color:var(--ink);margin:14px 0 8px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.cell{background:var(--term);border:1px solid var(--line);border-radius:6px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.cell canvas{image-rendering:pixelated}
+.cell small{color:var(--muted);font-size:10.5px}
+#modal{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;z-index:10}
+#modal.on{display:flex}
+#modal .box{background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:22px 28px 24px;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:520px}
+#modal .st{background:var(--term);border:1px solid var(--line);border-radius:10px;padding:18px}
+#modal canvas{image-rendering:pixelated;display:block}
+#reveal{text-align:center;min-height:86px}
+#reveal .nm{font-family:var(--serif);font-size:40px;color:var(--ink);line-height:1.1}
+#reveal .q{color:var(--muted);margin-top:4px}
+#missing{color:var(--muted);padding:0 32px}
+#lineup{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:18px 32px 0}
+#lineup .lu{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:8px;border-radius:8px;background:var(--term);border:1px solid var(--line)}
+#lineup .lu:hover{border-color:var(--acc)}
+#lineup canvas{image-rendering:pixelated}
+#lineup small{color:var(--muted);font-size:10.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Patch <i>— the hatchery</i></h1>
+  <p>Every install hatches one of these at random. Each has its own way out of the egg, its own moods, and its own coaching voice. ★ the ones worth keeping.</p>
+  <button class="btn main" id="hatch">hatch an egg</button>
+  <span id="picks"></span>
+</header>
+<div id="lineup"></div>
+<div class="grid" id="grid"></div>
+<p id="missing"></p>
+<div id="modal"><div class="box"><div class="st"><canvas id="mcv"></canvas></div><div id="reveal"></div>
+  <div><button class="btn main" id="again">hatch another</button> <button class="btn" id="close">close</button></div></div></div>
+
+<script src="core.js"></script>
+<script src="roster.js"></script>
+<script>
+(() => {
+const D = window.PatchDex, Q = new URLSearchParams(location.search);
+const ONLY = Q.get('only'), SHEET = Q.has('sheet');
+const MOODS = ['idle', 'talk', 'think', 'happy', 'sleep'];
+const STARS = { common: '★', uncommon: '★★', rare: '★★★', legendary: '★★★★' };
+const picks = new Set(JSON.parse(localStorage.getItem('patch.hatchery.picks') || '[]'));
+const missing = [];
+
+function load(ids, done) {
+  let i = 0;
+  const next = () => {
+    if (i >= ids.length) return done();
+    const s = document.createElement('script'), id = ids[i++];
+    s.src = `creatures/${id}.js?v=${Date.now()}`;
+    s.onload = next; s.onerror = () => { missing.push(id); next(); };
+    document.body.appendChild(s);
+  };
+  next();
+}
+
+let CW = 9;
+function measure() { const s = document.createElement('pre'); s.style.cssText = `position:absolute;visibility:hidden;font:var(--fs) var(--mono);font-family:${getComputedStyle(document.body).fontFamily};font-size:15px`; s.textContent = 'M'.repeat(100); document.body.appendChild(s); CW = s.getBoundingClientRect().width / 100; s.remove(); }
+
+const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const cards = [], LU = [];
+
+function build() {
+  const order = window.PATCH_ROSTER;
+  const list = D.creatures.filter(c => !ONLY || c.id === ONLY).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  const grid = document.getElementById('grid');
+  if (SHEET) grid.style.gridTemplateColumns = '1fr';
+  list.forEach(c => {
+    const pal = D.paletteOf(c), fr = D.frames(c), n = order.indexOf(c.id) + 1;
+    const el = document.createElement('div'); el.className = 'card';
+    el.innerHTML = `
+      <div class="hd"><span class="n">#${String(n).padStart(3, '0')}</span><h2>${esc(c.name)}</h2><span class="sp">${esc(c.species)}</span>
+        <span class="rar ${c.rarity}">${STARS[c.rarity]} ${c.rarity} · ${(D.odds(c) * 100).toFixed(1)}%</span></div>
+      <div class="body"><div class="stage"><span class="lbl">8× zoom</span><canvas class="big"></canvas></div>
+        <dl><dt>nature</dt><dd>${esc(c.blurb)}</dd><dt>coaching</dt><dd>${esc(c.coaching)}</dd>
+          <dt>voice</dt><dd><q>${esc(c.voice)}</q></dd><dt>hatch</dt><dd>${esc(c.hatch)}</dd></dl></div>
+      <div class="ctl">${MOODS.map(m => `<button class="btn md" data-m="${m}">${m}</button>`).join('')}
+        <span class="sep"></span><button class="btn ent">▶ entrance</button><button class="btn pk">★ pick</button></div>
+      <div class="pane"><div class="tb"><i></i><i></i><i></i><span>&nbsp;actual size in a pane</span></div>
+        <div class="in"><pre class="tx"></pre><canvas class="sm"></canvas></div>
+        <div class="ft"><span><span class="f">~/code/todo-api</span> main</span><span>copilot · ctx 32%</span></div></div>
+      ${c._errors.length ? `<div class="err">${esc(c._errors.join('\n'))}</div>` : ''}`;
+    grid.appendChild(el);
+    const st = { c, pal, fr, el, mood: 'idle', play: null, big: el.querySelector('.big'), sm: el.querySelector('.sm') };
+    el.querySelectorAll('.md').forEach(b => b.onclick = () => { st.mood = b.dataset.m; st.play = null; paintMood(st); });
+    el.querySelector('.ent').onclick = () => { st.play = performance.now(); };
+    el.querySelector('.pk').onclick = () => { picks.has(c.id) ? picks.delete(c.id) : picks.add(c.id); savePicks(); };
+    el.querySelector('.tx').innerHTML = [
+      '<span class="a">❯</span> <span class="f">add a try/except around the fetch</span>',
+      '<span class="g">✓</span> <span class="f">Edit</span> <span class="d">scheduler.py (+4 -1)</span>',
+      '<span class="f">●</span> Wrapped the fetch. Not run yet.', '',
+      `<span class="a">${esc(c.name.toLowerCase())}</span> <span class="d">·</span> <span class="f">${esc(c.voice)}</span>`, '',
+      '<span class="d">╭──────────────────────────────────╮</span>',
+      '<span class="d">│</span> <span class="a">❯</span>                                <span class="d">│</span>',
+      '<span class="d">╰──────────────────────────────────╯</span>'].join('\n');
+    paintMood(st);
+    cards.push(st);
+    if (SHEET) buildSheet(st);
+  });
+  if (!ONLY) list.forEach(c => { const d = document.createElement('div'); d.className = 'lu';
+    const cv = document.createElement('canvas'); d.appendChild(cv); const l = document.createElement('small'); l.textContent = c.name; d.appendChild(l);
+    d.onclick = () => cards.find(x => x.c === c).el.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('lineup').appendChild(d); LU.push({ c, cv, pal: D.paletteOf(c) }); });
+  paintPicks();
+  if (missing.length && !ONLY) document.getElementById('missing').textContent = 'not drawn yet: ' + missing.join(', ');
+}
+
+function paintMood(st) { st.el.querySelectorAll('.md').forEach(b => b.classList.toggle('on', b.dataset.m === st.mood)); }
+function savePicks() { localStorage.setItem('patch.hatchery.picks', JSON.stringify([...picks])); paintPicks(); }
+function paintPicks() {
+  cards.forEach(st => { const on = picks.has(st.c.id); st.el.classList.toggle('picked', on); st.el.querySelector('.pk').classList.toggle('on', on); });
+  document.getElementById('picks').innerHTML = picks.size ? 'picked: <b>' + [...picks].map(id => (D.creatures.find(c => c.id === id) || {}).name).join(', ') + '</b>' : 'nothing picked yet';
+}
+
+function frameAt(fr, ms) { let x = ms; for (let i = 0; i < fr.length; i++) { if (x < fr[i].ms) return fr[i]; x -= fr[i].ms; } return null; }
+const total = fr => fr.reduce((a, b) => a + b.ms, 0);
+
+function gridFor(st, t, now) {
+  if (st.play != null) {
+    const el = now - st.play, fr = frameAt(st.fr, el);
+    if (fr) return fr.g;
+    if (el < total(st.fr) + 1600) return D.homeOf && kitAt(st.c, D.spriteFor(st.c, 'happy', t));
+    st.play = null;
+  }
+  return kitAt(st.c, D.spriteFor(st.c, st.mood, t));
+}
+function kitAt(c, name) { return D.kit(c).at(name); }
+
+let T = 0;
+function tick() {
+  T++;
+  const now = performance.now();
+  cards.forEach(st => { const g = gridFor(st, T, now); D.draw(st.big, g, st.pal, 8); D.draw(st.sm, g, st.pal, Math.round(CW)); });
+  LU.forEach(x => D.draw(x.cv, x.c.sprites[D.spriteFor(x.c, 'idle', T + x.c.id.length * 7)], x.pal, 5));
+  if (M.c) {
+    const el = now - M.start, fr = frameAt(M.fr, el);
+    D.draw(M.cv, fr ? fr.g : kitAt(M.c, D.spriteFor(M.c, el < total(M.fr) + 1600 ? 'happy' : 'idle', T)), M.pal, 14);
+    if (!fr && !M.shown) { M.shown = true; reveal(M.c); }
+  }
+}
+
+// ---- hatch modal ----
+const M = { cv: document.getElementById('mcv') };
+function hatch() {
+  const c = D.pick();
+  Object.assign(M, { c, pal: D.paletteOf(c), fr: D.frames(c), start: performance.now(), shown: false });
+  document.getElementById('reveal').innerHTML = '<div class="q">…</div>';
+  document.getElementById('modal').classList.add('on');
+}
+function reveal(c) {
+  document.getElementById('reveal').innerHTML = `<div class="nm">${esc(c.name)}</div>
+    <div class="q"><span class="rar ${c.rarity}">${STARS[c.rarity]} ${c.rarity}</span> &nbsp;${esc(c.species)}</div>`;
+}
+document.getElementById('hatch').onclick = hatch;
+document.getElementById('again').onclick = hatch;
+document.getElementById('close').onclick = () => { M.c = null; document.getElementById('modal').classList.remove('on'); };
+
+// ---- review sheet (?only=id&sheet=1) ----
+function buildSheet(st) {
+  const { c, pal, fr } = st, s = document.createElement('div'); s.className = 'sheet';
+  const cell = (g, z, label) => { const d = document.createElement('div'); d.className = 'cell'; const cv = document.createElement('canvas'); D.draw(cv, g, pal, z); d.appendChild(cv); const l = document.createElement('small'); l.textContent = label; d.appendChild(l); return d; };
+  s.innerHTML = '<h3>sprites · 12×</h3><div class="row r1"></div><h3>entrance · every frame · 5×</h3><div class="row r2"></div><h3>actual terminal size (half-blocks, 1 px = ½ cell)</h3><div class="row r3"></div>';
+  Object.entries(c.sprites).forEach(([n, rows]) => s.querySelector('.r1').appendChild(cell(rows, 12, `${n} · ${[...rows[0]].length}×${rows.length}`)));
+  fr.forEach((x, i) => s.querySelector('.r2').appendChild(cell(x.g, 5, `#${i} · ${x.ms}ms${x.note ? ' · ' + x.note : ''}`)));
+  ['idle', 'happy', 'sleep'].forEach(n => s.querySelector('.r3').appendChild(cell(c.sprites[n], Math.round(CW), n)));
+  st.el.appendChild(s);
+}
+
+document.fonts.ready.then(() => { measure(); load(ONLY ? [ONLY] : window.PATCH_ROSTER, () => { build(); setInterval(tick, 100); tick(); }); });
+})();
+</script>
+</body>
+</html>

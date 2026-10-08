@@ -1,0 +1,12 @@
+{
+  "name": "hatchwork",
+  "version": "0.1.0",
+  "description": "Patch: a pixel companion for GitHub Copilot CLI that coaches agentic engineering habits. Every install hatches a different creature.",
+  "bin": { "hatchwork": "cli.js" },
+  "scripts": {
+    "check": "node cli.js --check",
+    "media": "python3 scripts/media.py"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
